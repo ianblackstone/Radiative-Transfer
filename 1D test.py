@@ -14,7 +14,7 @@ mu_i = 0
 phi_i = 0
 
 # The number of photons to simulate
-N_photons = 1000000
+N_photons = 100000
 
 # Counter for the number of photons that get absorbed
 N_absorbed = 0
@@ -39,7 +39,7 @@ def Scatter():
 def CheckStep(tau):
     if tau[2] >= tau_atm:
         return 1
-    if tau[2] < -0.1:
+    if tau[2] < -1:
         global N_absorbed
         N_absorbed += 1
         return 0
@@ -47,12 +47,14 @@ def CheckStep(tau):
 
 step_count = 0
 
-tau = tau_i[:]
-mu = mu_i
-phi = phi_i
 
 for i in range(N_photons):
+    tau = tau_i[:]
+    mu = mu_i
+    phi = phi_i
+    
     i += 1
+    
     while 1:
         tau = TakeStep(tau,mu,phi)
         mu,phi = Scatter()
@@ -62,10 +64,12 @@ for i in range(N_photons):
         escape = CheckStep(tau)
         
         if escape == 1:
-    #        print('escaped')
+            # print('escaped')
             break
+        
         elif escape == 0:
-    #        print('absorbed')
+            # print('absorbed')
             break
+        
         else:
             pass
