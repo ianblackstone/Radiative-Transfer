@@ -3,8 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # atmosphere depth, numpy array from 0 to 10 with N_atm evenly spaced samples
-N_atm = 1000
-tau_atm = np.logspace(-2,2,N_atm,base=10)
+N_atm = 100
+tau_atm = np.logspace(-2,3,N_atm,base=10)
 # tau_atm = np.array([0.01,0.03,0.1,0.3,1,3,10])
 
 # The number of photons to simulate for each optical depth
@@ -20,6 +20,14 @@ N_photons = 1000
 tau_i = [0,0,0]
 mu_i = 1
 phi_i = 0
+
+# We will use units of h*nu/c = 1, We can change this or iterate over a list of frequencies later.
+photon_momentum = 1
+
+# Total momentum
+momentum_i = photon_momentum*N_photons
+
+momentum_transfer = momentum_i*np.ones_like(tau_atm)
 
 # Counter for the number of photons that get absorbed
 N_absorbed = np.zeros_like(tau_atm)
@@ -59,9 +67,11 @@ for atm_i,atm in enumerate(tau_atm):
             tau = TakeStep(tau,mu,phi)
            
             if tau[2] >= atm:
+                momentum_transfer[atm_i] -= mu
                 break
             elif tau[2] < 0:
                 N_absorbed[atm_i] += 1
+                momentum_transfer[atm_i] -= mu
                 break
             
             # If the photon did not escape or get absorbed decide on a new scattering angle.
@@ -72,9 +82,14 @@ frac_transmitted = 1-N_absorbed/N_photons
 theory = 1/(1+tau_atm/2)
 
 # Plot data
-plt.plot(np.log10(tau_atm), frac_transmitted, label="Simulation data")
-plt.plot(np.log10(tau_atm),theory,label = r'$\frac{1}{1+\frac{\tau}{2}}$')
-plt.legend()
+# plt.plot(np.log10(tau_atm), frac_transmitted, label="Simulation data")
+# plt.plot(np.log10(tau_atm),theory,label = r'$\frac{1}{1+\frac{\tau}{2}}$')
+# plt.legend()
+# plt.xlabel(r'$log_{10}(\tau_{atm})$')
+# plt.ylabel('Fraction of transmitted photons')
+# plt.savefig('1D_Plot.png',dpi=200)
+
+plt.plot(np.log10(tau_atm),momentum_transfer/N_photons)
 plt.xlabel(r'$log_{10}(\tau_{atm})$')
-plt.ylabel('Fraction of transmitted photons')
-plt.savefig('1D_Plot.png',dpi=200)
+plt.ylabel('Momentum transferred per photon')
+plt.savefig('1D_Momentum_Plot.png',dpi=200)
