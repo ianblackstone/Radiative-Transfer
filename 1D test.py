@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 
 # atmosphere depth, numpy array from 0 to 10 with N_atm evenly spaced samples
 N_atm = 100
-tau_atm = np.logspace(-2,3,N_atm,base=10)
+tau_atm = np.logspace(-2,2,N_atm,base=10)
 # tau_atm = np.array([0.01,0.03,0.1,0.3,1,3,10])
 
 # The number of photons to simulate for each optical depth
-N_photons = 1000
+N_photons = 100
 
 # # Number of bins in the mu and phi directions.
 # # mu ranges from 0 to 1 and phi ranges from 0 to 2pi
@@ -20,6 +20,9 @@ N_photons = 1000
 tau_i = [0,0,0]
 mu_i = 1
 phi_i = 0
+
+g = [-1,-0.5,0.001,0.5,1]
+a = 0
 
 # We will use units of h*nu/c = 1, We can change this or iterate over a list of frequencies later.
 photon_momentum = 1
@@ -46,40 +49,58 @@ def TakeStep(tau,mu,phi):
     return tau 
 
 
-def Scatter():
+def Scatter(g):
     # decide on a new random direction to scatter in.
-    mu = 2*np.random.rand() - 1
+    s = 2*np.random.rand() - 1
+    
+    # This is the Henyey Greenstein relation for anisotropic scattering.
+    mu = 1/(2*g)*(1+g**2-((1-g**2)/(1+g*s))**2)
     phi = 2*np.pi*np.random.rand()
     
     return mu, phi
 
-# Loop over each atmospheric depth.  atm will be the atmospheric depth, atm_i is an iteration variable.
-for atm_i,atm in enumerate(tau_atm):
-    # Loop over each photon
-    for phot_i in range(N_photons):
-        # Set the initial conditions for the photons
-        tau = tau_i[:]
-        mu = mu_i
-        phi = phi_i
-        
-        # Keep making steps until the photon is absorbed or transmitted.
-        while 1:
-            tau = TakeStep(tau,mu,phi)
-           
-            if tau[2] >= atm:
-                momentum_transfer[atm_i] -= mu
-                break
-            elif tau[2] < 0:
-                N_absorbed[atm_i] += 1
-                momentum_transfer[atm_i] -= mu
-                break
-            
-            # If the photon did not escape or get absorbed decide on a new scattering angle.
-            mu,phi = Scatter()
+def PerformRun(g):
+    # Total momentum
+    momentum_i = photon_momentum*N_photons
 
-# Calculate the actual fraction transmitted and the theoretical line for comparison.
-frac_transmitted = 1-N_absorbed/N_photons
-theory = 1/(1+tau_atm/2)
+    momentum_transfer = momentum_i*np.ones_like(tau_atm)
+    
+    # Loop over each atmospheric depth.  atm will be the atmospheric depth, atm_i is an iteration variable.
+    for atm_i,atm in enumerate(tau_atm):
+        # Loop over each photon
+        for phot_i in range(N_photons):
+            # Set the initial conditions for the photons
+            tau = tau_i[:]
+            mu = mu_i
+            phi = phi_i
+            
+            # Keep making steps until the photon is absorbed or transmitted.
+            while 1:
+                tau = TakeStep(tau,mu,phi)
+               
+                if tau[2] >= atm:
+                    momentum_transfer[atm_i] -= mu
+                    break
+                elif tau[2] < 0:
+                    N_absorbed[atm_i] += 1
+                    momentum_transfer[atm_i] -= mu
+                    break
+                
+                # If the photon did not escape or get absorbed decide on a new scattering angle.
+                mu,phi = Scatter(g)
+    
+    # Calculate the actual fraction transmitted and the theoretical line for comparison.
+    frac_transmitted = 1-N_absorbed/N_photons
+    theory = 1/(1+tau_atm/2)
+    
+    return frac_transmitted, theory, momentum_transfer
+
+gdata = []
+
+for each in g:
+    frac_transmitted, theory, momentum_transfer = PerformRun(each)
+    # gdata.append([frac_transmitted, theory, momentum_transfer])
+    plt.plot(np.log10(tau_atm),momentum_transfer/N_photons,label=each)
 
 # Plot data
 # plt.plot(np.log10(tau_atm), frac_transmitted, label="Simulation data")
@@ -89,7 +110,9 @@ theory = 1/(1+tau_atm/2)
 # plt.ylabel('Fraction of transmitted photons')
 # plt.savefig('1D_Plot.png',dpi=200)
 
-plt.plot(np.log10(tau_atm),momentum_transfer/N_photons)
+
 plt.xlabel(r'$log_{10}(\tau_{atm})$')
 plt.ylabel('Momentum transferred per photon')
+plt.title('Momentum transfer using Henyey & Greenstein anisotropic scattering')
+plt.legend()
 plt.savefig('1D_Momentum_Plot.png',dpi=200)
