@@ -1,14 +1,20 @@
 # imports
 import numpy as np
 import matplotlib.pyplot as plt
+import time
+
+# Later I want to convert this to CUDA, since I have ~3000 times the FLOPS on the GPU.
+# import cupy as cu
+
+c = time.time()
 
 # atmosphere depth, numpy array from 0 to 10 with N_atm evenly spaced samples
 N_atm = 100
-tau_atm = np.logspace(-2,2,N_atm,base=10)
+tau_atm = np.logspace(-2,1,N_atm,base=10)
 # tau_atm = np.array([0.01,0.03,0.1,0.3,1,3,10])
 
 # The number of photons to simulate for each optical depth
-N_photons = 100
+N_photons = 1000
 
 # # Number of bins in the mu and phi directions.
 # # mu ranges from 0 to 1 and phi ranges from 0 to 2pi
@@ -22,9 +28,8 @@ mu_i = 1
 phi_i = 0
 
 g = [-1,-0.5,0.001,0.5,1]
-a = 0
 
-# We will use units of h*nu/c = 1, We can change this or iterate over a list of frequencies later.
+# We will use units of h*nu/c =  1, We can change this or iterate over a list of frequencies later.
 photon_momentum = 1
 
 # Total momentum
@@ -46,7 +51,7 @@ def TakeStep(tau,mu,phi):
     # tau[0] += mu*np.cos(phi)*step
     # tau[1] += mu*np.sin(phi)*step
     tau[2] += mu*step
-    return tau 
+    return tau, step
 
 
 def Scatter(g):
@@ -76,14 +81,21 @@ def PerformRun(g):
             
             # Keep making steps until the photon is absorbed or transmitted.
             while 1:
-                tau = TakeStep(tau,mu,phi)
+                tau, step = TakeStep(tau,mu,phi)
                
                 if tau[2] >= atm:
-                    momentum_transfer[atm_i] -= mu
+                    momentum_transfer[atm_i] -= mu*photon_momentum
                     break
                 elif tau[2] < 0:
                     N_absorbed[atm_i] += 1
-                    momentum_transfer[atm_i] -= mu
+                    momentum_transfer[atm_i] -= mu*photon_momentum
+                    tau[2]= tau[2]*(-1)
+                
+                # Not sure this is the right relationship for absorption but adding this for now.
+                if np.random.rand() < 0.1:
+                    # Check if the photon was absorbed, then add the initial momentum back if it was.
+                    N_absorbed[atm_i] += 1
+                    # momentum_transfer[atm_i] += photon_momentum
                     break
                 
                 # If the photon did not escape or get absorbed decide on a new scattering angle.
@@ -110,9 +122,12 @@ for each in g:
 # plt.ylabel('Fraction of transmitted photons')
 # plt.savefig('1D_Plot.png',dpi=200)
 
+d = time.time()
+
+print(d-c)
 
 plt.xlabel(r'$log_{10}(\tau_{atm})$')
 plt.ylabel('Momentum transferred per photon')
-plt.title('Momentum transfer using Henyey & Greenstein anisotropic scattering')
-plt.legend()
-plt.savefig('1D_Momentum_Plot.png',dpi=200)
+plt.title('Momentum transfer with reflecting boundary')
+plt.legend(title="anisotropic weighting")
+plt.savefig('1D_Momentum_Plot_With_Absorption.png',dpi=200)
