@@ -6,29 +6,30 @@ import time
 a = time.time()
 
 # atmosphere depth, numpy array from 0 to 10 with N_atm evenly log spaced samples
-N_atm = 100
-tau_atm = cp.logspace(-2,1,N_atm,base=10)
+N_atm = 1
+tau_atm = cp.logspace(1,1,N_atm,base=10)
 # tau_atm = np.array([0.01,0.03,0.1,0.3,1,3,10])
 
 # The number of photons to simulate for each optical depth
-N_photons = 1000
+N_photons = 100
 
 # # Set a counter for the number of photons absorbed.  Not used for momentum calculation.
 # N_absorbed = cp.zeros(N_atm)
 
-# Henyeye-Greenley parameters
+# Henyeye-Greenstein parameters
 g = [-1,-0.5,0.001,0.5,1]
 
-# g = [1]
+# Keeping track of the angles photons escape at.
+escape_mu = cp.array([])
+
+g = [0.0001]
 
 # Create an array of wavelengths.  Units in nm.
 Wavelengths = cp.linspace(100,500,50)
 
 # Pick a uniform grain size, units in micrometers.
 
-a = 1
-
-
+# a = 1
 
 # We will use units of h*nu/c = 1, We can change this or iterate over a list of frequencies later.
 photon_momentum = 1
@@ -62,6 +63,7 @@ def WalkLikeAPhoton(tau, mu, hg, atm, momentum_transfer):
 # mu -> A CUpy array of initial cosine(theta) for each photon.  This should just be 1 since all photons are initially upward moving.
 # hg -> A float containing the value of g in the Henyey-Greenley function
 # momentum_transfer -> A CUpy array that holds the momentum transferred.
+    global escape_mu
     while len(tau) > 0:
         # global steps
         # steps += 1
@@ -82,6 +84,8 @@ def WalkLikeAPhoton(tau, mu, hg, atm, momentum_transfer):
 
         mask = cp.isnan(tau)
         momentum_transfer[atm_i] -= photon_momentum*float(cp.sum(mu[mask]))
+        escape_mu = cp.concatenate((escape_mu,mu[mask]), axis=None)
+
         # if steps>20:#cp.sum(mu[mask])>0:
         #     print(hg)
         #     print(mu)
@@ -100,10 +104,10 @@ def WalkLikeAPhoton(tau, mu, hg, atm, momentum_transfer):
         momentum_transfer[atm_i] -= photon_momentum*float(cp.sum(mu[mask]))
         
         
-        tau[cp.where(cp.random.rand(len(tau))<0.1)] = cp.NaN
+        tau[cp.where(cp.random.rand(len(tau))<0)] = cp.NaN
         mask = cp.isnan(tau)
         mu = mu[mask]
-        momentum_transfer[atm_i] -= photon_momentum*float(cp.sum(mu[cp.where(mu<0)]))
+        # momentum_transfer[atm_i] -= photon_momentum*float(cp.sum(mu[cp.where(mu<0)]))
         tau = tau[~mask]
         direction = direction[~mask]
         
@@ -124,7 +128,7 @@ for hg in g:
     for atm_i,atm in enumerate(tau_atm):
         
         tau = cp.zeros(N_photons)
-        mu = cp.ones_like(tau)
+        mu = cp.zeros_like(tau)
         
         momentum_transfer = WalkLikeAPhoton(tau, mu, hg, atm, momentum_transfer)
     #     if flag:
@@ -137,11 +141,19 @@ b = time.time()
 
 print('time taken: ' + str(b-a))
 
+plt.figure(1)
 plt.xlabel(r'$log_{10}(\tau_{atm})$')
 plt.ylabel('Momentum transferred per photon')
 plt.title('CUpy with reflecting boundary')
 plt.legend(title="anisotropic weighting")
 plt.savefig('cupy_test.png',dpi=200)
+
+plt.figure(2)
+plt.xlabel(r'$\mu$')
+plt.ylabel('count')
+plt.title(r'count of escaping photons at each $\mu$')
+plt.hist(cp.asnumpy(escape_mu),bins=10)
+plt.savefig('mu_histogram.png',dpi=200)
 
 
 # # Calculate the actual fraction transmitted and the theoretical line for comparison.
