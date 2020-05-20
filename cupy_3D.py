@@ -1,8 +1,12 @@
 import cupy as cp
+import numpy as np
 import matplotlib.pyplot as plt
 import time
 
 start_time = time.time()
+
+
+
 
 # atmosphere depth, numpy array from 0 to 10 with N_atm evenly log spaced samples
 num_atm = 1
@@ -17,13 +21,6 @@ escaped_mu = []
 # Henyeye-Greenstein parameters to use.  Eventually these will need to be calculated from the grain size and dust composition.
 g = [-1,-0.5,0.001,0.5,1]
 
-# Define an initial state for each photon.  They are upward moving and start at (0,0,0).  Wavelength currently not used but
-# included for future use, not currently used.
-initial_state = cp.array([0,0,0,0,0,1])
-
-# Initialize the containing list for all the photons.
-photon_state = cp.array([initial_state,]*num_photons,dtype=float)
-
 # Planck's constant, for momentum calculations when we care about wavelength.
 h = 1
 
@@ -31,7 +28,17 @@ h = 1
 albedo = 1
 
 # Flag for the boundary.  it can either 'absorb', 'reemit', or 'reflect'.
-boundary = 'reflect'
+boundary = 'reemit'
+
+
+
+
+# Define an initial state for each photon.  They are upward moving and start at (0,0,0).  Wavelength currently not used but
+# included for future use, not currently used.
+initial_state = cp.array([0,0,0,0,0,1])
+
+# Initialize the containing list for all the photons.
+photon_state = cp.array([initial_state,]*num_photons,dtype=float)
 
 total_momentum = float(cp.sum(h/photon_state[:,5]))
 
@@ -41,8 +48,8 @@ total_momentum = float(cp.sum(h/photon_state[:,5]))
 
     #####################################################################################
 
-def GetStepSize(photon_state):
-    step = -cp.log(1-cp.random.rand(len(photon_state)))
+def GetStepSize(photon_state,tau_atm):
+    step = -cp.log(cp.random.rand(len(photon_state)))
     return step
 
 
@@ -80,7 +87,13 @@ def IsoScatter(photon_state):
     ####################################################################################
     
     # Theta is the polar angle with respect to the lab frame z-axis.
-    theta = 2*cp.pi*cp.random.rand(len(photon_state))
+    # theta = 2*cp.pi*cp.random.rand(len(photon_state))
+    
+    # Generate a uniform distribution for mu
+    mu = 2*cp.random.rand(len(photon_state)) - 1
+    
+    # Extract the angle theta from that uniform distribution
+    theta = cp.arccos(mu)
     
     # Phi is the azimuthal angle, scattering should always be isotropic in phi.
     phi = 2*cp.pi*cp.random.rand(len(photon_state))
@@ -222,7 +235,7 @@ def RemovePhotons(photon_state,removed_photons):
 while 1:
     # Determine the step size and take a step.
     # Commented out print commands were for troubleshooting.
-    step = GetStepSize(photon_state)
+    step = GetStepSize(photon_state,tau_atm)
     photon_state = TakeStep(photon_state,step)
     # print('After step, length is ' + str(len(photon_state)))
     
@@ -251,11 +264,18 @@ while 1:
     if len(photon_state)==0:
         break
     
-    # 
+    # Generate new theta and phi
     theta, phi = IsoScatter(photon_state)
     photon_state[:,3] += phi
     photon_state[:,4] += theta
     # print('After scatter, length is ' + str(len(photon_state)))
+
+
+theta_f = np.degrees(np.arccos(escaped_mu)).tolist()
+plt.hist(theta_f,bins='auto')
+plt.xlabel(r'$\theta$')
+plt.ylabel('count')
+plt.title(r'escaping photons vs $\theta$ using the ' + boundary + ' boundary condition')
 
 
 finish_time = time.time()
