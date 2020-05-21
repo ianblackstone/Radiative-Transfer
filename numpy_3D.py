@@ -1,4 +1,3 @@
-import cupy as cp
 import numpy as np
 import matplotlib.pyplot as plt
 import time
@@ -10,10 +9,10 @@ start_time = time.time()
 
 # atmosphere depth, numpy array from 0 to 10 with N_atm evenly log spaced samples
 num_atm = 1
-tau_atm = cp.logspace(1,1,num_atm,base=10)
+tau_atm = np.logspace(1,1,num_atm,base=10)
 
 # The number of photons to simulate for each optical depth
-num_photons = 10000
+num_photons = 1000
 
 # An array to track the mu at escape.
 escaped_mu = []
@@ -35,12 +34,12 @@ boundary = 'reemit'
 
 # Define an initial state for each photon.  They are upward moving and start at (0,0,0).  Wavelength currently not used but
 # included for future use, not currently used.
-initial_state = cp.array([0,0,0,0,0,1])
+initial_state = np.array([0,0,0,0,0,1])
 
 # Initialize the containing list for all the photons.
-photon_state = cp.array([initial_state,]*num_photons,dtype=float)
+photon_state = np.array([initial_state,]*num_photons,dtype=float)
 
-total_momentum = float(cp.sum(h/photon_state[:,5]))
+total_momentum = float(np.sum(h/photon_state[:,5]))
 
 # def AcceptReject(dist):
     #####################################################################################
@@ -49,7 +48,7 @@ total_momentum = float(cp.sum(h/photon_state[:,5]))
     #####################################################################################
 
 def GetStepSize(photon_state,tau_atm):
-    step = -cp.log(cp.random.rand(len(photon_state)))
+    step = -np.log(np.random.rand(len(photon_state)))
     return step
 
 
@@ -68,13 +67,13 @@ def TakeStep(photon_state, step):
     theta = photon_state[:,4]
     
     # Update the x coordinate
-    photon_state[:,0] += step*cp.sin(theta)*cp.cos(phi)
+    photon_state[:,0] += step*np.sin(theta)*np.cos(phi)
     
     # Update the y coordinate
-    photon_state[:,1] += step*cp.sin(theta)*cp.sin(phi)
+    photon_state[:,1] += step*np.sin(theta)*np.sin(phi)
     
     # Update the z coordinate
-    photon_state[:,2] += step*cp.cos(theta)
+    photon_state[:,2] += step*np.cos(theta)
     
     return photon_state
     
@@ -87,16 +86,16 @@ def IsoScatter(photon_state):
     ####################################################################################
     
     # Theta is the polar angle with respect to the lab frame z-axis.
-    # theta = 2*cp.pi*cp.random.rand(len(photon_state))
+    # theta = 2*np.pi*np.random.rand(len(photon_state))
     
     # Generate a uniform distribution for mu
-    mu = 2*cp.random.rand(len(photon_state)) - 1
+    mu = 2*np.random.rand(len(photon_state)) - 1
     
     # Extract the angle theta from that uniform distribution
-    theta = cp.arccos(mu)
+    theta = np.arccos(mu)
     
     # Phi is the azimuthal angle, scattering should always be isotropic in phi.
-    phi = 2*cp.pi*cp.random.rand(len(photon_state))
+    phi = 2*np.pi*np.random.rand(len(photon_state))
     
     return theta, phi
 
@@ -113,11 +112,11 @@ def IsoScatter(photon_state):
     
 #     # mu is the cosine of the polar angle with respect to the incoming photon direction before scattering.
 #     # For testing we will just use isotropic scattering for now where mu will be determined by a random angle theta.
-#     theta = 2*cp.pi*cp.random.rand(len(photon_state))
-#     mu = cp.cos(theta)
+#     theta = 2*np.pi*np.random.rand(len(photon_state))
+#     mu = np.cos(theta)
     
 #     # phi is the azimuthal angle, scattering should always be isotropic in phi.
-#     phi = 2*cp.pi*cp.random.rand(len(photon_state))
+#     phi = 2*np.pi*np.random.rand(len(photon_state))
     
 def CheckIfEscaped(photon_state,tau_atm,escaped_mu):
     ######################################################################################
@@ -129,15 +128,15 @@ def CheckIfEscaped(photon_state,tau_atm,escaped_mu):
     ######################################################################################
     
     # Looks for all the photons above the atmosphere.    
-    escaped_photons = cp.where(photon_state[:,2]>=tau_atm)[0]
+    escaped_photons = np.where(photon_state[:,2]>=tau_atm)[0]
     momentum_transfer = 0
     
     if len(escaped_photons) > 0:   
         # Find the angles the particles escaped at
-        escaped_mu += cp.cos(photon_state[escaped_photons,4]).tolist()
+        escaped_mu += np.cos(photon_state[escaped_photons,4]).tolist()
         
         # Calculates the momentum transferred, this is the difference between the initial z momentum and the final z momentum
-        momentum_transfer = float(cp.sum(h*(-cp.cos(photon_state[escaped_photons,4]))/photon_state[escaped_photons,5]))
+        momentum_transfer = float(np.sum(h*(-np.cos(photon_state[escaped_photons,4]))/photon_state[escaped_photons,5]))
         
         # Remove the escaped photons
         photon_state = RemovePhotons(photon_state, escaped_photons)
@@ -154,10 +153,10 @@ def CheckBoundary(photon_state,boundary):
     #######################################################################################
     
     # Find the photons that have bounced back under the origin.
-    boundary_photons = cp.where(photon_state[:,2]<=0)[0]
+    boundary_photons = np.where(photon_state[:,2]<=0)[0]
     
     # The sum of the initial momentum and the extra downward momentum.
-    momentum_transfer = float(cp.sum(h*(-cp.cos(photon_state[boundary_photons,4]))/photon_state[boundary_photons,5]))
+    momentum_transfer = float(np.sum(h*(-np.cos(photon_state[boundary_photons,4]))/photon_state[boundary_photons,5]))
    
     if len(boundary_photons)>0:
         # A photon that reaches the boundary is absorbed and replaced with a new photon in the initial state.
@@ -170,7 +169,7 @@ def CheckBoundary(photon_state,boundary):
             global initial_state
                     
             # Reset the absorbed photons
-            photon_state[boundary_photons] = cp.array([initial_state,]*len(boundary_photons),dtype=float)
+            photon_state[boundary_photons] = np.array([initial_state,]*len(boundary_photons),dtype=float)
         
         # A photon that reaches the boundary is absorbed, contributing both its initial momentum and its current
         # downward momentum.  The photon is then removed from the list.
@@ -206,7 +205,7 @@ def Absorb(photon_state,albedo):
     ########################################################################################
     
     # Generate the list of absorbed photons.
-    absorbed_photons = cp.where(cp.random.rand(len(photon_state))>albedo)[0]
+    absorbed_photons = np.where(np.random.rand(len(photon_state))>albedo)[0]
     
     # Remove the absorbed photons
     photon_state = RemovePhotons(photon_state, absorbed_photons)
@@ -224,8 +223,8 @@ def RemovePhotons(photon_state,removed_photons):
     
     surviving_photons = []
     
-    for photon in cp.arange(len(photon_state)):
-        if ~cp.isin(photon,removed_photons):
+    for photon in np.arange(len(photon_state)):
+        if ~np.isin(photon,removed_photons):
             surviving_photons += [int(photon),]
     
     photon_state = photon_state[surviving_photons]
