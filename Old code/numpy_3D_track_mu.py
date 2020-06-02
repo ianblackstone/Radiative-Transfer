@@ -4,9 +4,6 @@ import time
 
 start_time = time.time()
 
-
-
-
 # atmosphere depth, numpy array from 0 to 10 with N_atm evenly log spaced samples
 num_atm = 1
 tau_atm = np.logspace(1,1,num_atm,base=10)
@@ -14,8 +11,11 @@ tau_atm = np.logspace(1,1,num_atm,base=10)
 # The number of photons to simulate for each optical depth
 num_photons = 1000
 
+# The number of bins to put the photons into
+num_bins = 10
+
 # An array to track the mu at escape.
-escaped_mu = []
+escaped_mu = np.zeros(num_bins)
 
 # Henyeye-Greenstein parameters to use.  Eventually these will need to be calculated from the grain size and dust composition.
 g = [-1,-0.5,0.001,0.5,1]
@@ -29,15 +29,15 @@ albedo = 1
 # Flag for the boundary.  it can either 'absorb', 'reemit', or 'reflect'.
 boundary = 'reemit'
 
-
-
-
 # Define an initial state for each photon.  They are upward moving and start at (0,0,0).  Wavelength currently not used but
 # included for future use, not currently used.
-initial_state = np.array([0,0,0,0,0,1])
+initial_state = np.array([0,0,0,0,0,1,0])
 
 # Initialize the containing list for all the photons.
 photon_state = np.array([initial_state,]*num_photons,dtype=float)
+
+photon_state[:,6] = 2*np.random.rand(len(photon_state)) - 1
+photon_state[:,3] = 2*np.pi*np.random.rand(len(photon_state))
 
 total_momentum = float(np.sum(h/photon_state[:,5]))
 
@@ -48,7 +48,7 @@ total_momentum = float(np.sum(h/photon_state[:,5]))
     #####################################################################################
 
 def GetStepSize(photon_state,tau_atm):
-    step = -np.log(np.random.rand(len(photon_state)))
+    step = -np.log(np.random.rand(len(photon_state)))/tau_atm
     return step
 
 
@@ -64,16 +64,18 @@ def TakeStep(photon_state, step):
 
     # Give friendly names to theta and phi for ease of use here.
     phi = photon_state[:,3]
-    theta = photon_state[:,4]
+    mu = photon_state[:,6]
+    
+    sint = np.sqrt(1-mu**2)
     
     # Update the x coordinate
-    photon_state[:,0] += step*np.sin(theta)*np.cos(phi)
+    photon_state[:,0] += step*sint*np.cos(phi)
     
     # Update the y coordinate
-    photon_state[:,1] += step*np.sin(theta)*np.sin(phi)
+    photon_state[:,1] += step*sint*np.sin(phi)
     
     # Update the z coordinate
-    photon_state[:,2] += step*np.cos(theta)
+    photon_state[:,2] += step*mu
     
     return photon_state
     
@@ -89,15 +91,15 @@ def IsoScatter(photon_state):
     # theta = 2*np.pi*np.random.rand(len(photon_state))
     
     # Generate a uniform distribution for mu
-    mu = 2*np.random.rand(len(photon_state)) - 1
+    mu = np.random.rand(len(photon_state))
     
     # Extract the angle theta from that uniform distribution
-    theta = np.arccos(mu)
+    # theta = np.arccos(mu)
     
     # Phi is the azimuthal angle, scattering should always be isotropic in phi.
     phi = 2*np.pi*np.random.rand(len(photon_state))
     
-    return theta, phi
+    return mu, phi
 
 
 # def HGScatter(photon_state,g):
@@ -131,9 +133,8 @@ def CheckIfEscaped(photon_state,tau_atm,escaped_mu):
     escaped_photons = np.where(photon_state[:,2]>=tau_atm)[0]
     momentum_transfer = 0
     
-    if len(escaped_photons) > 0:   
-        # Find the angles the particles escaped at
-        escaped_mu += np.cos(photon_state[escaped_photons,4]).tolist()
+    if len(escaped_photons) > 0:
+        escaped_mu = np.append(escaped_mu,np.floor(np.multiply(photon_state[escaped_photons,6],num_bins)))
         
         # Calculates the momentum transferred, this is the difference between the initial z momentum and the final z momentum
         momentum_transfer = float(np.sum(h*(-np.cos(photon_state[escaped_photons,4]))/photon_state[escaped_photons,5]))
@@ -170,6 +171,7 @@ def CheckBoundary(photon_state,boundary):
                     
             # Reset the absorbed photons
             photon_state[boundary_photons] = np.array([initial_state,]*len(boundary_photons),dtype=float)
+            photon_state[boundary_photons,6] = np.random.rand(len(boundary_photons))
         
         # A photon that reaches the boundary is absorbed, contributing both its initial momentum and its current
         # downward momentum.  The photon is then removed from the list.
@@ -188,7 +190,7 @@ def CheckBoundary(photon_state,boundary):
             photon_state[boundary_photons,4] = -photon_state[boundary_photons,4]
             
         else:
-            print('No valid boundary condition specified, enter a boundary condition.  Code is likely to give errors.')
+            print('No valid boundary condition specified, enter a boundary condition.')
     
     return photon_state, momentum_transfer
         
@@ -242,7 +244,7 @@ while 1:
     photon_state, momentum_transfer, escaped_mu = CheckIfEscaped(photon_state,tau_atm,escaped_mu)
     total_momentum += momentum_transfer
     # print('After escape, length is ' + str(len(photon_state)))
-
+    
     # We need to end the loop as soon as the last photon is removed, otherwise we get an error from CuPy trying
     # to get a logical index value from an empty array.
     if len(photon_state)==0:
@@ -264,26 +266,40 @@ while 1:
         break
 
     # Generate new theta and phi
-    theta, phi = IsoScatter(photon_state)
+    mu, phi = IsoScatter(photon_state)
     photon_state[:,3] += phi
-    photon_state[:,4] += theta
+    photon_state[:,6] = mu
     # print('After scatter, length is ' + str(len(photon_state)))
 
 
-theta_f = np.arccos(escaped_mu).tolist()
-plt.figure(1)
-count, bins, patch = plt.hist(theta_f,bins=10)
+# theta_f = np.arccos(escaped_mu).tolist()
 
-midpoints = []
+# plt.figure(1)
+# count, bins, patch = plt.hist(theta_f, bins = num_bins)
 
-for i in range(len(bins)-1):
-    midpoints += [(bins[i+1]-bins[i])]
 
-midpoints = np.cumsum(midpoints)
-count = count*len(midpoints)/(2*num_photons*np.cos(np.radians(midpoints)))
+dtheta = 1/num_bins
+half = dtheta/2
+
+midpoints = np.zeros(num_bins)
+
+# for i in range(len(bins)-1):
+#     midpoints[i] = np.median([bins[i+1],bins[i]])
+
+for i in range(0,num_bins):
+    midpoints[i] = np.arccos(i*dtheta+half)
+
+count = num_bins/(2*num_photons*np.cos(midpoints))
+
+thetas = [18.2,31.8,41.4,49.5,56.6,63.3,69.5,75.3,81.4,87.1]
+intensity = [1.224,1.145,1.065,0.9885,0.9117,0.8375,0.7508,0.6769,0.5786,0.5135]
+
+thetas = np.radians(thetas)
 
 plt.figure(2)
+plt.axes().set_aspect('equal')
 plt.scatter(midpoints,count)
+plt.plot(thetas,intensity,color='red')
 plt.xlabel(r'$\theta$')
 plt.xticks([0,np.pi/9,2*np.pi/9,3*np.pi/9,4*np.pi/9],labels=['0','20','40','60','80'])
 plt.ylabel('intensity')
