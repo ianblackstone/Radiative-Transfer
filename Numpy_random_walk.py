@@ -7,20 +7,21 @@ import time
 start_time = time.time()
 
 # Declare the number of bins, photons, thickness of the atmosphere, and albedo.
-num_photons = 1000000
+num_photons = 100000
 num_bins = 10
 num_atm = 100
 albedo = 0.9
 h = 1
-hg = np.linspace(-1,1,num=5)
+hg = np.linspace(-0.9,0.9,num=5)
+alpha = 0.3
 
 tau_list = np.logspace(-2,2,num_atm, base=10)
 
 # Flag for the boundary.  it can be 'absorb', 'reemit', or 'reflect'.
 boundary = 'reflect'
 
-# Flag for the scattering type.  'hg', 'iso', 'draine' (not implemented)
-scatter = 'hg'
+# Flag for the scattering type.  'hg', 'iso', 'draine'
+scatter = 'draine'
 
 # Initial values, defined this way to make the photon state more explicit.
 # Once this is working I want to incorporate pandas so the variables can be more
@@ -100,6 +101,32 @@ def HGScatter(num_photons,g):
     # This is the Henyey Greenstein relation for anisotropic scattering.
     mu = 1/(2*g)*(1+g**2-((1-g**2)/(1+g*s))**2)
     
+    return phi, mu
+
+def DraineScatter(num_photons,g,alpha):
+    ##########################################################################
+    # Scatter photons using the Henyey-Greenstein scattering function.
+    #
+    # num_photons -- An integer giving number of photons to be scattered
+    # g -- a number from -1 to 1 (0 excluded), that represents the "average"
+    #      direction the photon is scattered into.
+    ##########################################################################
+    
+    phi = 2*np.pi*np.random.rand(num_photons)
+    mu = np.empty(0)
+    
+    remaining_photons = num_photons
+    
+    while remaining_photons > 0:
+        y = np.random.rand(remaining_photons) 
+        mu_candidate = 2*np.random.rand(remaining_photons)-1
+    
+        pdf = 1/(4*np.pi)*(1 - g**2)/(1 + alpha*(1 + 2*g**2)/3)*(1+alpha*mu_candidate**2)/(1+g**2-2*g*mu_candidate)**(3/2)
+        
+        accepted_mu = np.where(pdf > y)[0]
+        if len(accepted_mu)>0:
+            remaining_photons -= len(accepted_mu)
+            mu = np.append(mu,mu_candidate[accepted_mu])
     return phi, mu
 
 # def Absorb(photon_state,albedo,collision_momentum):
@@ -354,6 +381,17 @@ def RunPhotons(tau_atm,num_photons,boundary,albedo,scatter,g):
                 
             else:
                 phi, mu_prime = HGScatter(num_photons,g)
+                photon_state[:,3] = phi
+                photon_state = RotateIntoLabFrame(photon_state, mu_prime)
+                
+        if scatter == 'draine':
+            if g == 0 and alpha == 0:
+                phi, mu = IsoScatter(num_photons)
+                photon_state[:,3] = phi
+                photon_state[:,4] = mu
+                
+            else:
+                phi, mu_prime = DraineScatter(num_photons,g,alpha)
                 photon_state[:,3] = phi
                 photon_state = RotateIntoLabFrame(photon_state, mu_prime)
 
