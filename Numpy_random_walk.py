@@ -7,7 +7,7 @@ import time
 start_time = time.time()
 
 # Declare the number of bins, photons, thickness of the atmosphere, and albedo.
-num_photons = 100000
+num_photons = 10000
 num_bins = 10
 num_atm = 100
 albedo = 0.9

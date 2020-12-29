@@ -1,0 +1,26 @@
+plots/
+SiC_81/
+Sil_81/
+Gra_81/
+Draine data PAH neu/
+Draine data Sil/
+Draine data SiC/
+Draine data Gra/
+Old code/
+PAHneu_30/
+run/
+Draine data SUV/
+test/
+suvSil_81/
+Sil_21
+*.dat
+*.csv
+*.png
+Sil_21
+draine_test_1_585
+draine_test_0_02512
+Sil_21
+draine_data_Gra_10_0
+draine_data_SiC_10_0
+Sil_21
+*.png
