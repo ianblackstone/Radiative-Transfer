@@ -1,9 +1,9 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib
 from hoki import load
 import numpy as np
 import os
-
 
 
 # def GetKappa(folder, a_min, a_max, wl_list, RPF):
@@ -45,7 +45,15 @@ import os
     
 #     return kappa, a
 
-def GetKappas(folder, a_min, a_max, wl_list, BPASS_data, time_slice):
+def GetGrainData(grain_type, grain_min, grain_max, BPASS_data_r, time_slice, wl_ref):
+    Grain_File = grain_type + ' Average Values.csv'
+    folder = 'Draine data ' + grain_type + '/'
+    kappa_data, _, _ = GetTauScaling(folder, grain_min, grain_max, BPASS_data_r.WL.to_numpy(), BPASS_data_r, str(time_slice), wl_ref)
+    Grain_data = pd.read_csv(Grain_File)
+
+    return Grain_data, kappa_data
+
+def GetKappas(folder, a_min, a_max, wl_list, Spectra, time_slice):
     ##########################################################################
     # This function calculates the various kappas and returns each of them as
     # numpy array.  It also returns the total luminosity and grain size.
@@ -111,13 +119,15 @@ def GetKappas(folder, a_min, a_max, wl_list, BPASS_data, time_slice):
     Q_ext_RP = Q_ext_RP[grain_mask,:]
     
     # Extract the flux from the BPASS data.
-    L_integrand = BPASS_data[time_slice].to_numpy()
+    L_integrand = Spectra[time_slice].to_numpy()
+    # print(Spectra.shape)
     
     # get the total luminosity/angstrom (units will not matter)
     L = np.sum(L_integrand)
     
     # Do the first integral for the averaged values.  The [None,:] indexing needs
     # to be done to make Q_ext and L_integrand both be vertical arrays.
+    # print('Q_ext_F: {}, L_int: {}'.format(np.shape(Q_ext_F),np.shape(L_integrand[None,:])))
     Q_ext_int_F = np.trapz(Q_ext_F * L_integrand[None,:], x = wl_list, axis = 1)*10**4
     Q_ext_int_RP = np.trapz(Q_ext_RP * L_integrand[None,:], x = wl_list, axis = 1)*10**4
     
@@ -156,30 +166,29 @@ def GetTauScaling(folder, a_min, a_max, wl_list, BPASS_data, time_slice, wl_ref)
     return df, kappa_av_RP, kappa_av_F
 
 
-## Get the tau scaling and save it to a csv
-## -------------------------------------------------------------------
+# # Get the tau scaling and save it to a csv
+# # -------------------------------------------------------------------
 
-folder = 'Draine data Sil/'
-wl_ref = 0.547
-a_min = 0.001
-a_max = 1
+# folder = 'Draine data Sil/'
+# wl_ref = 0.547
+# a_min = 0.001
+# a_max = 1
 
-BPASS_file = 'spectra-bin-imf135_300.z020.dat'
+# BPASS_file = 'spectra-bin-imf100_300.z010.dat'
+# time_slice = '6.0'
 
-time_slice = '6.0'
+# BPASS_data = load.model_output(BPASS_file)
+# BPASS_data.WL *= 10**-4
 
-BPASS_data = load.model_output(BPASS_file)
-BPASS_data.WL *= 10**-4
+# wl_min = 0.001
+# wl_max = 10
 
-wl_min = 0.001
-wl_max = 10
+# BPASS_data = BPASS_data[ (BPASS_data.WL >= wl_min) & (BPASS_data.WL <= wl_max) ]
+# wl_list = BPASS_data.WL.to_numpy()
 
-BPASS_data = BPASS_data[ (BPASS_data.WL >= wl_min) & (BPASS_data.WL <= wl_max) ]
-wl_list = BPASS_data.WL.to_numpy()
+# df, kappa_av_RP, kappa_av_F = GetTauScaling(folder, a_min, a_max, wl_list, BPASS_data, time_slice, wl_ref)
 
-df, kappa_av_RP, kappa_av_F = GetTauScaling(folder, a_min, a_max, wl_list, BPASS_data, time_slice, wl_ref)
-
-# name = 'lambda ' + str(wl_ref).replace('.','_') + ' a ' + str(a_min).replace('.','_') + ' ' + str(a_max).replace('.','_') + ' ' + folder[-4:-1] +  ' time ' + time_slice + '.csv'
+# # name = 'lambda ' + str(wl_ref).replace('.','_') + ' a ' + str(a_min).replace('.','_') + ' ' + str(a_max).replace('.','_') + ' ' + folder[-4:-1] +  ' time ' + time_slice + '.csv'
 
 # df.to_csv(name)
 ## -------------------------------------------------------------------
@@ -201,41 +210,41 @@ df, kappa_av_RP, kappa_av_F = GetTauScaling(folder, a_min, a_max, wl_list, BPASS
 # Plot L_Edd
 # ------------------------------------------------------------------
 
-a_min = 0.001
-a_max = 1
+# a_min = 0.001
+# a_max = 1
 
-BPASS_file = 'spectra-bin-imf135_300.z020.dat'
+# BPASS_file = 'spectra-bin-imf135_300.z020.dat'
 
-BPASS_data = load.model_output(BPASS_file)
-BPASS_data.WL *= 10**-4
+# BPASS_data = load.model_output(BPASS_file)
+# BPASS_data.WL *= 10**-4
 
-time_list = BPASS_data.columns[BPASS_data.columns != 'WL']
+# time_list = BPASS_data.columns[BPASS_data.columns != 'WL']
 
-time_list_exp = np.power(10,time_list.astype(float))
+# time_list_exp = np.power(10,time_list.astype(float))
 
-wl_min = 0.001
-wl_max = 10
+# wl_min = 0.001
+# wl_max = 10
 
-BPASS_data = BPASS_data[ (BPASS_data.WL >= wl_min) & (BPASS_data.WL <= wl_max) ]
-wl_list = BPASS_data.WL.to_numpy()
+# BPASS_data = BPASS_data[ (BPASS_data.WL >= wl_min) & (BPASS_data.WL <= wl_max) ]
+# wl_list = BPASS_data.WL.to_numpy()
 
-kappa_av_RP = np.zeros_like(time_list)
-kappa_av_F = np.zeros_like(time_list)
-kappa_RP = np.zeros_like(wl_list)
-kappa_F = np.zeros_like(wl_list)
-L = np.zeros_like(time_list)
+# kappa_av_RP = np.zeros_like(time_list)
+# kappa_av_F = np.zeros_like(time_list)
+# kappa_RP = np.zeros_like(wl_list)
+# kappa_F = np.zeros_like(wl_list)
+# L = np.zeros_like(time_list)
 
-fdg = 1/100
+# fdg = 1/100
 
-folder = 'Draine data Sil/'
-for i, time_slice in enumerate(time_list):
+# folder = 'Draine data Sil/'
+# for i, time_slice in enumerate(time_list):
     
-    kappa_av_RP[i], kappa_av_F[i], kappa_RP, kappa_F, L[i], a = GetKappas(folder, a_min, a_max, wl_list, BPASS_data, time_slice)
+#     kappa_av_RP[i], kappa_av_F[i], kappa_RP, kappa_F, L[i], a = GetKappas(folder, a_min, a_max, wl_list, BPASS_data, time_slice)
 
-L_edd_Sil = 1.299*10**4 / (kappa_av_RP*fdg)
+# L_edd_Sil = 1.299*10**4 / (kappa_av_RP*fdg)
 
-DF = pd.DataFrame({'time':time_list,'time exp':time_list_exp, 'L_bol_BPASS':L, 'kappa_av_RP_Sil':kappa_av_RP, 'kappa_av_F_Sil':kappa_av_F, 'L_Edd_Sil':L_edd_Sil})
-DF2 = pd.DataFrame({'WL':wl_list, 'kappa_RP_Sil':kappa_RP, 'kappa_F_Sil':kappa_F})
+# DF = pd.DataFrame({'time':time_list,'time exp':time_list_exp, 'L_bol_BPASS':L, 'kappa_av_RP_Sil':kappa_av_RP, 'kappa_av_F_Sil':kappa_av_F, 'L_Edd_Sil':L_edd_Sil})
+# DF2 = pd.DataFrame({'WL':wl_list, 'kappa_RP_Sil':kappa_RP, 'kappa_F_Sil':kappa_F})
 
 
 
@@ -274,8 +283,8 @@ DF2 = pd.DataFrame({'WL':wl_list, 'kappa_RP_Sil':kappa_RP, 'kappa_F_Sil':kappa_F
 
 # DF['Mass'] = M
 
-# DF.to_csv('L_Edd dataframe.csv')
-# DF2.to_csv('kappa by wl.csv')
+# # DF.to_csv('L_Edd dataframe.csv', index = False)
+# # DF2.to_csv('kappa by wl.csv', index = False)
 
 # plt.plot(time_list_exp, L_edd_Sil, label = r'$L_{Edd}/M \, (Sil)$')
 # plt.plot(time_list_exp, L_edd_SiC, label = r'$L_{Edd}/M \, (SiC)$')
@@ -513,6 +522,27 @@ DF2 = pd.DataFrame({'WL':wl_list, 'kappa_RP_Sil':kappa_RP, 'kappa_F_Sil':kappa_F
 # plt.savefig('L contribution by wavelength.png', dpi = 200)
 ## -----------------------------------------------------------
 
+##  Plot super and sub Eddington regions
+## -------------------------------------------------------------------------
+
+M51 = pd.read_csv('M51.csv')
+
+NGC6946 = pd.read_csv('NGC6946.csv')
+
+r = 83/2
+# r = 73/2
+
+L_over_M = M51.LBol/(M51.Sigma_star*np.pi*r**2)/(3.826*10**33)
+# L_over_M = NGC6946.LBol/(NGC6946.Sigma_star*np.pi*r**2)/(3.826*10**33)
+
+
+# plt.scatter(M51.xcenter, M51.ycenter, s = 1, c = L_over_M, norm = matplotlib.colors.DivergingNorm(L_edd_Sil[0]), cmap = 'coolwarm')
+# plt.savefig('L over M for M51.png', dpi = 200)
+
+# plt.scatter(NGC6946.xcenter, NGC6946.ycenter, s = 1, c = L_over_M, norm = matplotlib.colors.DivergingNorm(L_edd_Sil[0]), cmap = 'coolwarm')
+# plt.savefig('L over M for NGC6946.png', dpi = 200)
+
+## -------------------------------------------------------------------------
 
 
 
