@@ -133,7 +133,15 @@ def GetKappas(folder, a_min, a_max, wl_list, Spectra, time_slice):
     
     # Define the density.  This is in units of g/(cm^2 * um).  This is identical
     # to using g/um^3 then converting to cm^2/g at the end.
-    density = 3*10**-4
+    if "Sil" in folder:
+        density = 3.3*10**-4
+    elif "Gra" in folder:
+        density = 2.26*10**-4
+    elif "SiC" in folder:
+        density = 3.22*10**-4
+    else:
+        Exception("GetKappas() | Gain Type for {} not Recognized.".format(folder))
+        quit
     
     # If we only want one grain size we don't do an integral so we have an if here.
     if len(a) > 1:
@@ -207,13 +215,14 @@ def GetTauScaling(folder, a_min, a_max, wl_list, BPASS_data, time_slice, wl_ref)
 
 
 
-# Plot L_Edd
-# ------------------------------------------------------------------
+# # Plot L_Edd
+# # ------------------------------------------------------------------
 
 # a_min = 0.001
 # a_max = 1
 
-# BPASS_file = 'spectra-bin-imf135_300.z020.dat'
+# BPASS_file = 'spectra-bin-imf100_300.z010.dat'
+# SM_file = BPASS_file.replace('spectra','starmass')
 
 # BPASS_data = load.model_output(BPASS_file)
 # BPASS_data.WL *= 10**-4
@@ -276,14 +285,14 @@ def GetTauScaling(folder, a_min, a_max, wl_list, BPASS_data, time_slice, wl_ref)
 # DF2['kappa_F_Gra'] = kappa_F
 # DF['L_Edd_Gra'] = L_edd_Gra
 
-# SM_file = 'starmass-bin-imf135_300.z020.dat'
+
 # Mass = load.model_output(SM_file)
 
 # M = Mass.stellar_mass + Mass.remnant_mass
 
 # DF['Mass'] = M
 
-# # DF.to_csv('L_Edd dataframe.csv', index = False)
+# DF.to_csv('L_Edd dataframe {}.csv'.format(BPASS_file.replace('.z',' z').replace('dat','')), index = False)
 # # DF2.to_csv('kappa by wl.csv', index = False)
 
 # plt.plot(time_list_exp, L_edd_Sil, label = r'$L_{Edd}/M \, (Sil)$')
@@ -525,14 +534,14 @@ def GetTauScaling(folder, a_min, a_max, wl_list, BPASS_data, time_slice, wl_ref)
 ##  Plot super and sub Eddington regions
 ## -------------------------------------------------------------------------
 
-M51 = pd.read_csv('M51.csv')
+# M51 = pd.read_csv('M51.csv')
 
-NGC6946 = pd.read_csv('NGC6946.csv')
+# NGC6946 = pd.read_csv('NGC6946.csv')
 
-r = 83/2
+# r = 83/2
 # r = 73/2
 
-L_over_M = M51.LBol/(M51.Sigma_star*np.pi*r**2)/(3.826*10**33)
+# L_over_M = M51.LBol/(M51.Sigma_star*np.pi*r**2)/(3.826*10**33)
 # L_over_M = NGC6946.LBol/(NGC6946.Sigma_star*np.pi*r**2)/(3.826*10**33)
 
 

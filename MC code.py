@@ -28,16 +28,18 @@ from read_BPASS import GetGrainData
 wl_ref = 0.656
 
 # Set the BPASS timeslice.
-time_slice = 6.0
+time_slice = 7.0
 
 # Declare the number of bins, photons, and atmospheres.
-num_photons = 100000
+num_photons = 20000000
 num_bins = 20000
 num_atm = 100
+photon_reduction = 1000
 
 wl_min = 0.001
 wl_max = 10
 
+# "mix", "Sil", "Gra", or "SiC"
 grain_type = 'mix'
 grain_min = 0.001
 grain_max = 1
@@ -48,7 +50,15 @@ grain_mix = [0.5,0.45,0.05]
 min_tau = 10**-3
 max_tau = 100
 
-MC_data = pd.read_csv('detailed MC.csv')
+# Select the BPASS files to use.  Uncomment the file to use
+BPASS_file = 'spectra-bin-imf135_300.z020.dat'
+# BPASS_file = 'spectra-bin-imf135_100.z020.dat'
+# BPASS_file = 'spectra-bin-imf100_300.z020.dat'
+# BPASS_file = 'spectra-bin-imf100_300.z010.dat'
+# BPASS_file = 'spectra-bin-imf_chab300.z020.dat'
+ionizing_file = BPASS_file.replace('spectra','ionizing')
+
+MC_data = pd.read_csv('detailed MC {}csv'.format(BPASS_file.replace('.z',' z').replace('dat','')))
 
 # tau_list = np.logspace(-3, 2, num_atm, base=10)
 tau_list = MC_data.tau.to_numpy()
@@ -67,10 +77,6 @@ abs_only = 0
 
 # monochromatic light, set to 0 to draw from an SED.
 monochromatic = 0
-
-# Select the BPASS files to use
-BPASS_file = 'spectra-bin-imf135_300.z020.dat'
-ionizing_file = 'ionizing-bin-imf135_300.z020.dat'
 
 # cm per pc
 cm_pc = 3.086*10**18
@@ -975,14 +981,16 @@ def FluxODEs(r, X):
     
     return dvdr, dtdr
 
-def runMC(tau_list_calc, num_photons, PDF, Range, boundary = 'reflect', scatter = 'hg', save_MC = False):
+def runMC(BPASS_file, time_slice, num_photons, photon_reduction=0, boundary = 'reflect', scatter = 'hg', save_MC = True):
     ##############################################################################
     # Runs the monte carlo simulation for a list of atmospheric depths.
     #
     # tau_list_calc -- numpy array containing the list of tau_lambda to be used.
     # num_photons -- an integer giving the number of photons to run at each atmosphere.
-    # PDF -- PDF of the photon spectra to draw from.
-    # Range -- numpy list of the wavelengths to be used.
+    # photon_reduction -- an integer giving the factor of reduction for photons at
+    #                     thicker atmospheres.  Setting to 0 disables this.  For example
+    #                     100 means that the thickest atmosphere hass 100 times fewer
+    #                     photons than the thinnest.
     # boundary -- string giving the type of boundary to use.  Defaults to reflecting.
     #             It can be 'absorb', 'reemit', or 'reflect'.
     # scatter -- string giving the scattering type.  Defaults to hg.
@@ -993,9 +1001,54 @@ def runMC(tau_list_calc, num_photons, PDF, Range, boundary = 'reflect', scatter 
     #            must be sorted by age (ascending) for interpolation to function.
     ##############################################################################
     
+    # Load the BPASS data
+    BPASS_data = load.model_output(BPASS_file)
+    # Make a copy of the BPASS data to downsample.
+    BPASS_data_r = BPASS_data.copy()
+    
+    # Convert the BPASS data to microns.
+    BPASS_data_r.WL *= 10**-4
+    
+    BPASS_data_r = BPASS_data_r[ (BPASS_data_r.WL >= wl_min) & (BPASS_data_r.WL <= wl_max) ]
+    
+    BPASS_data_r = BPASS_data_r.iloc[::100,:]
+
+    photon = BPASS_data_r[str(time_slice)] * BPASS_data_r.WL**2 / (h*c)
+    
+    # -----------------------------------------------------
+        
+    ## Find CDF
+    # -----------------------------------------------------
+    
+    norm = np.trapz(photon, x = BPASS_data_r.WL)
+    CDF = np.zeros_like(BPASS_data_r.WL)
+    
+    for i, _ in enumerate(BPASS_data_r.WL):
+        phot = photon[0:i]
+        WL = BPASS_data_r.WL[0:i]
+        CDF[i] = np.trapz(phot, x = WL) / norm
+    
+    # plt.plot(BPASS_data_r.WL, CDF)
+    # plt.ylabel('Continuous Distribution')
+    # plt.xlabel('Wavelength (micron)')
+    # plt.title('CDF by wavelength')
+    # plt.savefig('CDF.png', dpi = 200)
+    
+    # -----------------------------------------------------
+    
+    
+    ## Generate PDF from CDF.
+    # -----------------------------------------------------
+    
+    PDF = np.gradient(CDF)
+    
+    if photon_reduction != 0:
+        num_photons_tau = np.linspace(num_photons,num_photons/photon_reduction,len(tau_list_calc)).astype(int)
     
     for atm_i, tau_atm in enumerate(tau_list_calc):
         # Run the photons and return the mu at escape
+        if photon_reduction != 0:
+            num_photons = num_photons_tau[atm_i]
         escaped_mu, boundary_momentum, escaped_momentum, initial_momentum, _ = RunPhotons(tau_atm, num_photons, boundary, scatter, PDF, Range)
     
         momentum_method_1[atm_i] = (initial_momentum - escaped_momentum + boundary_momentum)/initial_momentum
@@ -1007,7 +1060,7 @@ def runMC(tau_list_calc, num_photons, PDF, Range, boundary = 'reflect', scatter 
     
     if save_MC:
         MC_data[str(time_slice)] = momentum_transfer
-        MC_data.to_csv('detailed MC.csv', index = False)
+        MC_data.to_csv('detailed MC {}csv'.format(BPASS_file.replace('.z',' z').replace('dat','')), index = False)
     
     return momentum_transfer
 
@@ -1066,37 +1119,37 @@ for rate in rate_list:
     
     # age_list = np.insert(age_list, [0], 10**6)
     
-    plt.plot(time_list_exp, continuous_SFR.sum(axis = 0)[1:]/mass, label = str(rate) + ' solar M/year')
-    plt.xscale('log')
-    plt.yscale('log')
+    # plt.plot(time_list_exp, continuous_SFR.sum(axis = 0)[1:]/mass, label = str(rate) + ' solar M/year')
+    # plt.xscale('log')
+    # plt.yscale('log')
     # plt.plot(time_list_exp, continuous_SFR.sum(axis = 0)[1:], label = str(rate) + ' solar M/year')
 ## -------------------------------------------------------------------------
 
-L_Edd = pd.read_csv('L_Edd dataframe.csv')
+L_Edd_DF = pd.read_csv('L_Edd dataframe {}.csv'.format(BPASS_file.replace('.z',' z').replace('dat','')))
 
 ratio_lambda_f_lambda_rp = Grain_data.Kappa_F[Grain_data.WL.round(decimals=4) == wl_ref].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL.round(decimals = 4) == wl_ref].to_numpy()
 
 if grain_type == 'Gra':
-    ratio_f_lambda_rp = L_Edd.kappa_av_F_Gra[L_Edd.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
-    ratio_rp_lambda_rp = L_Edd.kappa_av_RP_Gra[L_Edd.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+    ratio_f_lambda_rp = L_Edd_DF.kappa_av_F_Gra[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+    ratio_rp_lambda_rp = L_Edd_DF.kappa_av_RP_Gra[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
 
 elif grain_type == 'Sil':
     
-    ratio_f_lambda_rp = L_Edd.kappa_av_F_Sil[L_Edd.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
-    ratio_rp_lambda_rp = L_Edd.kappa_av_RP_Sil[L_Edd.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+    ratio_f_lambda_rp = L_Edd_DF.kappa_av_F_Sil[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+    ratio_rp_lambda_rp = L_Edd_DF.kappa_av_RP_Sil[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
 
 elif grain_type == 'SiC':
-    ratio_f_lambda_rp = L_Edd.kappa_av_F_SiC[L_Edd.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
-    ratio_rp_lambda_rp = L_Edd.kappa_av_RP_SiC[L_Edd.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+    ratio_f_lambda_rp = L_Edd_DF.kappa_av_F_SiC[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+    ratio_rp_lambda_rp = L_Edd_DF.kappa_av_RP_SiC[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
 
 elif grain_type =='mix':
-    ratio_f_lambda_rp = (L_Edd.kappa_av_F_Sil[L_Edd.time == time_slice].to_numpy()*grain_mix[0] + 
-                         L_Edd.kappa_av_F_Gra[L_Edd.time == time_slice].to_numpy()*grain_mix[1] +
-                         L_Edd.kappa_av_F_SiC[L_Edd.time == time_slice].to_numpy()*grain_mix[2]
+    ratio_f_lambda_rp = (L_Edd_DF.kappa_av_F_Sil[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[0] + 
+                         L_Edd_DF.kappa_av_F_Gra[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[1] +
+                         L_Edd_DF.kappa_av_F_SiC[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[2]
                          )/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
-    ratio_rp_lambda_rp = (L_Edd.kappa_av_RP_Sil[L_Edd.time == time_slice].to_numpy()*grain_mix[0] +
-                          L_Edd.kappa_av_RP_Gra[L_Edd.time == time_slice].to_numpy()*grain_mix[1] +
-                          L_Edd.kappa_av_RP_SiC[L_Edd.time == time_slice].to_numpy()*grain_mix[2]
+    ratio_rp_lambda_rp = (L_Edd_DF.kappa_av_RP_Sil[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[0] +
+                          L_Edd_DF.kappa_av_RP_Gra[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[1] +
+                          L_Edd_DF.kappa_av_RP_SiC[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[2]
                           )/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
 
 else:
@@ -1152,8 +1205,6 @@ gal_data['Momentum'] = 0
 
 gal_data['tau'] = gal_data['Sigma_g'] * Grain_data.Kappa_RP[Grain_data.WL.round(decimals=4) == wl_ref].to_numpy() * f_dg
 
-L_Edd_DF = pd.read_csv('L_Edd dataframe.csv')
-
 L_over_M = L_Edd_DF[L_Edd_DF.time == time_slice].L_bol_BPASS/L_Edd_DF[L_Edd_DF.time == time_slice].Mass
 
 # Mass of new stars, in grams.
@@ -1193,7 +1244,7 @@ gal_data['Momentum'] = momentum
 
 gal_data['L_Edd'] = (G * c * gal_data['Mass_g'] * gal_data.Mass_tot  / (h_g**2 * gal_data['Momentum'] + get_tau_IR(h_g, gal_data.L_Bol, gal_data.Sigma_g)))
 
-gal_data['F_Edd'] = (G * c * gal_data['Sigma_g'] * (gal_data['Sigma_star'] * np.minimum(h_g /gal_data['H_old'],1)) + gal_data['Sigma_g'] + gal_data['Sigma_new'])/ (2 * gal_data['Momentum'])
+gal_data['F_Edd'] = (2 * np.pi * G * c * gal_data['Sigma_g'] * (gal_data['Sigma_star'] * np.minimum(h_g /gal_data['H_old'],1)) + gal_data['Sigma_g'] + gal_data['Sigma_new'])/ (gal_data['Momentum'])
 
 gal_data['tau_RP'] = gal_data.tau * ratio_rp_lambda_rp
 
@@ -1249,21 +1300,21 @@ delta_r = (25-h_g_scale)*h_g/num_bins
 
 print(f'Galaxy data setup done.  Time taken: {time.time() - start_time:.5}')
 
-try:
-    r_span = [r[Edd_Ratio > 1][0],r[-1]]
-except:
-    print('Region {} is not super-Eddington.'.format(region_ID))
-    sys.exit(0)
+# try:
+#     r_span = [r[Edd_Ratio > 1][0],r[-1]]
+# except:
+#     print('Region {} is not super-Eddington.'.format(region_ID))
+#     sys.exit(0)
 
-# dvdr(r, v, M_g, M_new, M_old_i, L_Bol, tau_i, Sigma_g)
+# # dvdr(r, v, M_g, M_new, M_old_i, L_Bol, tau_i, Sigma_g)
 
-if model == "spherical":
-    solved = inte.solve_ivp(ODEs, r_span, [v_0, t_0], method='Radau')
-elif model == "planar":
-    solved = inte.solve_ivp(FluxODEs, r_span, [v_0, t_0], method='Radau', max_step = cm_pc)
-else:
-    print('invalid model selection, use "spherical" or "planar".')
-    sys.exit(0)
+# if model == "spherical":
+#     solved = inte.solve_ivp(ODEs, r_span, [v_0, t_0], method='Radau')
+# elif model == "planar":
+#     solved = inte.solve_ivp(FluxODEs, r_span, [v_0, t_0], method='Radau', max_step = cm_pc)
+# else:
+#     print('invalid model selection, use "spherical" or "planar".')
+#     sys.exit(0)
 
 # fig, ax = plt.subplots(1,2)
 
@@ -1275,20 +1326,20 @@ else:
 # ax[0].set_yscale('log')
 # ax[1].set_yscale('log')
 
-plt.figure(dpi = 200)
+# plt.figure(dpi = 200)
 
-host = host_subplot(111, axes_class=AA.Axes)
+# host = host_subplot(111, axes_class=AA.Axes)
 
-par1 = host.twinx()
+# par1 = host.twinx()
 
-p0, = host.plot(solved.t/cm_pc, solved.y[0]/10**5, label = "Solve IVP")
-# p2, = host.plot(solved.t/cm_pc, np.sqrt(v_0 + 8*Momentum*F_Bol*(solved.t-r[0])/(Sigma_g*c) - 4*G*Sigma_g*(solved.t-r[0]) - 4*G*Sigma_new*(solved.t-r[0]) - 2*G*Sigma_old*(solved.t-r[0])**2/H_old)/(2*10**5), '--', label = "Analytic solution")
-# host.set_xscale('log')
-# plt.yscale('log')
-host.set_ylim(0, 1.2*max(solved.y[0])/10**5)
-host.set_xlabel('Radius (pc)')
-host.set_ylabel('Velocity (km/s)')
-plt.title(r'Region {} velocity'.format(region_ID))
+# p0, = host.plot(solved.t/cm_pc, solved.y[0]/10**5, label = "Solve IVP")
+# # p2, = host.plot(solved.t/cm_pc, np.sqrt(v_0 + 8*Momentum*F_Bol*(solved.t-r[0])/(Sigma_g*c) - 4*G*Sigma_g*(solved.t-r[0]) - 4*G*Sigma_new*(solved.t-r[0]) - 2*G*Sigma_old*(solved.t-r[0])**2/H_old)/(2*10**5), '--', label = "Analytic solution")
+# # host.set_xscale('log')
+# # plt.yscale('log')
+# host.set_ylim(0, 1.2*max(solved.y[0])/10**5)
+# host.set_xlabel('Radius (pc)')
+# host.set_ylabel('Velocity (km/s)')
+# plt.title(r'Region {} velocity'.format(region_ID))
 
 # offset = 60
 # new_fixed_axis = par1.get_grid_helper().new_fixed_axis
