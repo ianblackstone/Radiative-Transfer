@@ -7,11 +7,12 @@ from hoki import load
 from scipy import integrate as inte
 from scipy.interpolate import interpn
 # from scipy.optimize import fsolve
-from mpl_toolkits.axes_grid1 import host_subplot
-import mpl_toolkits.axisartist as AA
+# from mpl_toolkits.axes_grid1 import host_subplot
+# import mpl_toolkits.axisartist as AA
 import sys
 
-from read_BPASS import GetGrainData
+from read_BPASS import GetGrainData, GetKappas
+from constants import cm_pc, g_Msun, L_sun_conversion, h, c, G, sigma_SB
 
 
 ##############################################################################
@@ -21,20 +22,20 @@ from read_BPASS import GetGrainData
 #
 ##############################################################################
 
+
 ## Flags and parameters
 ##----------------------------------------------------------------------------
-
 # Set the reference wavelength
 wl_ref = 0.656
 
 # Set the BPASS timeslice.
-time_slice = 7.0
+time_slice = 6.0
 
 # Declare the number of bins, photons, and atmospheres.
-num_photons = 20000000
-num_bins = 20000
+num_photons = 100000
+num_bins = 2000
 num_atm = 100
-photon_reduction = 1000
+photon_reduction = 10000
 
 wl_min = 0.001
 wl_max = 10
@@ -43,6 +44,9 @@ wl_max = 10
 grain_type = 'mix'
 grain_min = 0.001
 grain_max = 1
+
+# Set a tau cutoff. Below this the Monte Carlo results will not be used.
+tau_cutoff = 0.7
 
 # Define the mixture of [Sil, Gra, SiC].  These should add to 1.
 grain_mix = [0.5,0.45,0.05]
@@ -55,13 +59,14 @@ BPASS_file = 'spectra-bin-imf135_300.z020.dat'
 # BPASS_file = 'spectra-bin-imf135_100.z020.dat'
 # BPASS_file = 'spectra-bin-imf100_300.z020.dat'
 # BPASS_file = 'spectra-bin-imf100_300.z010.dat'
+# BPASS_file = 'spectra-bin-imf100_300.z001.dat'
 # BPASS_file = 'spectra-bin-imf_chab300.z020.dat'
 ionizing_file = BPASS_file.replace('spectra','ionizing')
 
-MC_data = pd.read_csv('detailed MC {}csv'.format(BPASS_file.replace('.z',' z').replace('dat','')))
+MC_data = pd.read_csv('detailed MC {} {}csv'.format(grain_type, BPASS_file.replace('.z',' z').replace('dat','')))
 
-# tau_list = np.logspace(-3, 2, num_atm, base=10)
-tau_list = MC_data.tau.to_numpy()
+tau_list = np.logspace(-3, 2, num_atm, base=10)
+# tau_list = MC_data.tau.to_numpy()
 tau_list_calc = tau_list[(tau_list >= min_tau) & (tau_list <= max_tau)]
 num_atm = len(tau_list_calc)
 
@@ -72,32 +77,17 @@ boundary = 'reflect'
 scatter = 'hg'
 
 # Boolean flags for randomizing mu at the start and turning off scattering.
-rand_mu = 1
-abs_only = 0
+rand_mu = False
+abs_only = False
 
 # monochromatic light, set to 0 to draw from an SED.
 monochromatic = 0
 
-# cm per pc
-cm_pc = 3.086*10**18
-
-# g per solar mass
-g_Msun = 1.988*10**33
-
-# (ergs/s) / L_Sun
-L_sun_conversion = 3.826*10**33
-
-h_old = 1000
-h_old = h_old * cm_pc
-
 # Height of the gas column in parsecs
-h_g = 1
+h_g = 5
 
 # Sigma g scaling factor
 h_g_scale = 1/h_g
-
-# Convert to cgs
-h_g = h_g * cm_pc
 
 region_ID = 162
 
@@ -106,33 +96,19 @@ f_dg = 1/100
 
 # Starting velocity in cm/s and time in years.
 v_0 = 100
-t_0 = 10**6
+t_0 = np.power(10,time_slice)
 
-# Define the files to read
-gal_file_1 = 'NGC5194_Full_Aperture_table_2arc.dat'
-gal_file_2 = 'M51_3p6um_avApertures_MjySr.txt'
-
-# The center of the galaxy, obtained from http://ned.ipac.caltech.edu/
-# [RA, Dec] Numbers here are assuming that our dataset is in the J2000.0 frame.
-gal_center = [202.484167, 47.230556]
-
-# Distance to the galaxy in pc
-Distance = 8.34*10**6
-
-# Resolution in arcseconds
-AngularResolution = 1
-
-# Spatial resolution in cm
-Resolution = Distance * np.tan(AngularResolution*np.pi/648000) * cm_pc
+## 'M51' or `NGC6946'
+galaxy = 'M51'
 
 # Define the column scale for the old stellar mass (r_star / h_star)
 h_scale = 7.3
 
 # Determine wether to age the stellar population as the galaxy simulation runs.
-age = True
+stellar_aging = True
 
-# determine which model to use
-model = "planar"
+# determine which model to use. No longer used.
+# model = "spherical"
 
 ## Begin code to run the MC.
 ## -------------------------------------------------------------------------
@@ -179,39 +155,21 @@ model = "planar"
     
 #     return BPASS_data, BPASS_data_r,ion_data
 
-start_time = time.time()
 
-# Load the BPASS data
-BPASS_data = load.model_output(BPASS_file)
-# Make a copy of the BPASS data to downsample.
-BPASS_data_r = BPASS_data.copy()
-# Load the ionizing photon data.
-ion_data = load.model_output(ionizing_file)
 
-H_Alpha_ratio = (np.power(10,ion_data.halpha[ion_data.log_age == time_slice]))/L_sun_conversion/(BPASS_data[str(time_slice)].sum())
+def GetGrainKappas(BPASS_data, time_slice, BPASS_data_r, wl_ref = 0.656, grain_mix = [0.5,0.45,0.05], grain_min = 0.001, grain_max = 1, grain_type = 'mix'):
+    if grain_type == "mix":
+        Sil_data, Sil_kappa = GetGrainData('Sil', grain_min, grain_max, BPASS_data_r, time_slice, wl_ref)
+        Gra_data, Gra_kappa = GetGrainData('Gra', grain_min, grain_max, BPASS_data_r, time_slice, wl_ref)
+        SiC_data, SiC_kappa = GetGrainData('SiC', grain_min, grain_max, BPASS_data_r, time_slice, wl_ref)
+        
+        Grain_data = Sil_data*grain_mix[0] + Gra_data*grain_mix[1] + SiC_data*grain_mix[2]
+        kappa_data = Sil_kappa*grain_mix[0] + Gra_kappa*grain_mix[1] + SiC_kappa*grain_mix[2]
 
-# Convert the BPASS data to microns.
-BPASS_data_r.WL *= 10**-4
-
-BPASS_data_r = BPASS_data_r[ (BPASS_data_r.WL >= wl_min) & (BPASS_data_r.WL <= wl_max) ]
-
-if grain_type == "mix":
-    Sil_data, Sil_kappa = GetGrainData('Sil', grain_min, grain_max, BPASS_data_r, time_slice, wl_ref)
-    Gra_data, Gra_kappa = GetGrainData('Gra', grain_min, grain_max, BPASS_data_r, time_slice, wl_ref)
-    SiC_data, SiC_kappa = GetGrainData('SiC', grain_min, grain_max, BPASS_data_r, time_slice, wl_ref)
-    
-    Grain_data = Sil_data*grain_mix[0] + Gra_data*grain_mix[1] + SiC_data*grain_mix[2]
-    kappa_data = Sil_kappa*grain_mix[0] + Gra_kappa*grain_mix[1] + SiC_kappa*grain_mix[2]
-    
-else:
-    Grain_data, kappa_data = GetGrainData(grain_type, grain_min, grain_max, BPASS_data_r, time_slice, wl_ref)
-
-# kappa_data = pd.read_csv(kappa_file)
-
-kappa_data.WL = kappa_data.WL.round(4)
-Grain_data.WL = Grain_data.WL.round(4)
-
-Grain_data = pd.merge(Grain_data, kappa_data, left_on = 'WL', right_on = 'WL')
+    else:
+        Grain_data, kappa_data = GetGrainData(grain_type, grain_min, grain_max, BPASS_data_r, time_slice, wl_ref)
+        
+    return Grain_data, kappa_data
 
 
 # Not doing absorption only right now.
@@ -227,32 +185,26 @@ Grain_data = pd.merge(Grain_data, kappa_data, left_on = 'WL', right_on = 'WL')
 ## Generate photon counts
 # -----------------------------------------------------
 
-BPASS_data_r = BPASS_data_r.iloc[::100,:]
+# BPASS_data_r = BPASS_data_r.iloc[::100,:]
 
 # BPASS_data_r.WL *= 10**-4
 
-h = 6.6261*(10**(-27))
-
-c = 2.99792458*(10**10)
-G = 6.67259*(10**-8)
-sigma_SB = 5.67037441918442945397*10**-5
-
 # BPASS_data_r.iloc[:,1:-1] *= 10**8
 
-photon = BPASS_data_r[str(time_slice)] * BPASS_data_r.WL**2 / (h*c)
+# photon = BPASS_data_r[str(time_slice)] * BPASS_data_r.WL**2 / (h*c)
 
-# -----------------------------------------------------
+# # -----------------------------------------------------
     
-## Find CDF
-# -----------------------------------------------------
+# ## Find CDF
+# # -----------------------------------------------------
 
-norm = np.trapz(photon, x = BPASS_data_r.WL)
-CDF = np.zeros_like(BPASS_data_r.WL)
+# norm = np.trapz(photon, x = BPASS_data_r.WL)
+# CDF = np.zeros_like(BPASS_data_r.WL)
 
-for i, _ in enumerate(BPASS_data_r.WL):
-    phot = photon[0:i]
-    WL = BPASS_data_r.WL[0:i]
-    CDF[i] = np.trapz(phot, x = WL) / norm
+# for i, _ in enumerate(BPASS_data_r.WL):
+#     phot = photon[0:i]
+#     WL = BPASS_data_r.WL[0:i]
+#     CDF[i] = np.trapz(phot, x = WL) / norm
 
 # plt.plot(BPASS_data_r.WL, CDF)
 # plt.ylabel('Continuous Distribution')
@@ -266,7 +218,7 @@ for i, _ in enumerate(BPASS_data_r.WL):
 ## Generate PDF from CDF.
 # -----------------------------------------------------
 
-PDF = np.gradient(CDF)
+# PDF = np.gradient(CDF)
 
 # Initial values, defined this way to make the photon state more explicit.
 # Once this is working I want to incorporate pandas so the variables can be more
@@ -426,7 +378,7 @@ def GetZMomentum(mu_list,lambda_list):
     
     return momentum
 
-def CreatePhotons(num_photons,initial_state,rand_mu, PDF, Range):
+def CreatePhotons(num_photons,initial_state,rand_mu, PDF, Range, Grain_data):
     ##########################################################################
     # Generates a number of new photons.
     #
@@ -579,7 +531,7 @@ def RemovePhotons(photon_state,removed_photons):
     return photon_state
 
 # def CheckBoundary(photon_state,boundary,boundary_momentum,collision_momentum, PDF, Range):
-def CheckBoundary(photon_state,boundary,boundary_momentum, PDF, Range):
+def CheckBoundary(photon_state,boundary,boundary_momentum, PDF, Range, Grain_data):
     #######################################################################################
     # This function handles the behavior at the emitting boundary.
     #
@@ -604,7 +556,7 @@ def CheckBoundary(photon_state,boundary,boundary_momentum, PDF, Range):
             global initial_state
                     
             # Reset the absorbed photons
-            photon_state[boundary_photons] = CreatePhotons(len(boundary_photons), initial_state, rand_mu, PDF, Range)
+            photon_state[boundary_photons] = CreatePhotons(len(boundary_photons), initial_state, rand_mu, PDF, Range, Grain_data)
         
         # A photon that reaches the boundary is absorbed, contributing both its initial momentum and its current
         # downward momentum.  The photon is then removed from the list.
@@ -677,7 +629,7 @@ def RotateIntoLabFrame(photon_state,mu_prime):
     
     return photon_state
 
-def RunPhotons(tau_atm, num_photons, boundary, scatter, PDF, Range):
+def RunPhotons(tau_atm, num_photons, boundary, scatter, PDF, Range, Grain_data):
     #######################################################################################
     # This function creates the initial photons and loops until the photons have all either
     # escaped or been absorbed.
@@ -696,7 +648,7 @@ def RunPhotons(tau_atm, num_photons, boundary, scatter, PDF, Range):
     escaped_mu = np.empty(0)
     
     # Generate new photons
-    photon_state = CreatePhotons(num_photons,initial_state,rand_mu, PDF, Range)
+    photon_state = CreatePhotons(num_photons,initial_state,rand_mu, PDF, Range, Grain_data)
     
     # Create counters for the momentum.
     initial_momentum = GetZMomentum(photon_state[:,4],photon_state[:,5])
@@ -735,7 +687,7 @@ def RunPhotons(tau_atm, num_photons, boundary, scatter, PDF, Range):
         
         # Check for photons that bounce under the origin.
         # photon_state, boundary_momentum, collision_momentum = CheckBoundary(photon_state,boundary,boundary_momentum,collision_momentum)
-        photon_state, boundary_momentum = CheckBoundary(photon_state,boundary,boundary_momentum, PDF, Range)
+        photon_state, boundary_momentum = CheckBoundary(photon_state,boundary,boundary_momentum, PDF, Range, Grain_data)
 
         num_photons = len(photon_state)
         
@@ -866,6 +818,8 @@ def get_tau_IR(r, L_Bol, Sigma_g):
     
     return tau_IR
 
+vec_tau_IR = np.vectorize(get_tau_IR)
+
 # def dvdr(r, v, M_g, M_new, M_old_i, L_Bol, tau_i, Sigma_g):
 #     #######################################################################################
 #     # This function returns the ODE for velocity: dv/dr
@@ -898,19 +852,69 @@ def get_tau_IR(r, L_Bol, Sigma_g):
 #     return (-G*(M_g + M_new + M_old)/r**2 + momentum_new*L_Bol/(c*M_g))/v
 
 
-def GetMC(tau, new_time):
+def GetMC(MC_data, tau, new_time, L_Edd_DF, Grain_data, tau_cutoff = 0):
+
+    _, _, ratio_rp_lambda_rp = GetRatios(L_Edd_DF, Grain_data, new_time, grain_type, wl_ref)
+
+    MC_data_cutoff = MC_data.copy()
+
+    if tau_cutoff > 0:
+        mask = MC_data.tau*ratio_rp_lambda_rp < tau_cutoff
     
-    if np.any(new_time == MC_data.drop('tau', axis=1).columns.values.astype(float)):
-        MC_result = np.interp(tau, MC_data.tau, MC_data[str(new_time)])    
+        for col in MC_data_cutoff.columns:
+            MC_data_cutoff[col][mask] = 1- np.exp(-MC_data.tau[mask]*ratio_rp_lambda_rp)
+    
+        MC_data_cutoff.tau = MC_data.tau
+
+    if np.any(new_time == MC_data_cutoff.drop('tau', axis=1).columns.values.astype(float)):
+        MC_result = np.interp(tau, MC_data_cutoff.tau, MC_data_cutoff[str(new_time)])
     else:
-        MC_result = interpn((MC_data.tau.values, MC_data.drop('tau', axis = 1).columns.values.astype(float))
-                            ,MC_data.drop('tau', axis = 1).to_numpy(), (tau, new_time))
+        MC_result = interpn((MC_data_cutoff.tau.values, MC_data_cutoff.drop('tau', axis = 1).columns.values.astype(float))
+                            ,MC_data_cutoff.drop('tau', axis = 1).to_numpy(), (tau, new_time))
 
     return MC_result
 
-VecMC = np.vectorize(GetMC)
+# def OldODEs(r, X, grain_type, grain_min, grain_max, BPASS_data, time_slice, tau_cutoff, regionData, grain_mix):
+#     ##########################################################################
+#     # Returns the ODE for dv/dr and dt/dr. I think this is the old one?????
+#     #
+#     # r -- A number giving the physical size of the region in cm.
+#     # X -- A vector containing [v, t] in cm/s and years.
+#     # tau_data -- A collection of variables needed to calculate a new tau
+#     # # folder -- 
+#     ##########################################################################
+    
+#     v, t = X
+    
+#     L_Bol_new = regionData.L_Bol
+    
+#     if stellar_aging:
+#         if grain_type == 'mix':
+#             _, _, Sil_kappa, _, _, _  = GetKappas('Draine data Sil/', grain_min, grain_max, BPASS_data.WL, BPASS_data, time_slice)
+#             _, _, Gra_kappa, _, _, _ = GetKappas('Draine data Gra/', grain_min, grain_max, BPASS_data.WL, BPASS_data, time_slice)
+#             _, _, SiC_kappa, _, _, _ = GetKappas('Draine data SiC/', grain_min, grain_max, BPASS_data.WL, BPASS_data, time_slice)
 
-def ODEs(r, X):
+#             kappa = Sil_kappa*grain_mix[0] + Gra_kappa*grain_mix[1] + SiC_kappa*grain_mix[2]
+#         else:
+#             kappa = GetKappas('Draine data {}/'.format(grain_type), grain_min, grain_max, BPASS_data.WL, BPASS_data, time_slice)
+        
+#         tau_new = regionData.Sigma_g*(h_g/r)**2 * kappa[BPASS_data.WL == wl_ref*1000]*f_dg
+#         new_time = np.log10(t)
+#         L_ratio = np.interp(new_time,BPASS_data.drop('WL', axis = 1).sum(axis = 0).index.astype(float), BPASS_data.drop('WL', axis = 1).sum(axis = 0).values)/BPASS_data[str(time_slice)].sum()
+#         L_Bol_new *= L_ratio
+#         momentum_new = GetMC(tau_new, new_time, tau_cutoff) + get_tau_IR(r, L_Bol_new,  (h_g/r)**2 * regionData.Sigma_g)
+#         print('L_Bol: {}, time: {}, momentum: {}'.format(L_Bol_new/L_sun_conversion, new_time, momentum_new))
+#     else:
+#         tau_new = np.array(regionData.tau_i*(h_g/r)**2)
+#         momentum_new = GetMC(tau_new, time_slice, tau_cutoff) + get_tau_IR(r, L_Bol_new,  (h_g/r)**2 * regionData.Sigma_g)
+    
+#     dvdr = (-G*(regionData.M_g + regionData.M_new + regionData.M_old*(r/h_g)**3)/r**2 + momentum_new*L_Bol_new/(c*regionData.M_g))/v
+#     print('dvdr: {}'.format(dvdr))
+#     dtdr = 1/(v*31556952)
+
+#     return dvdr, dtdr
+
+def ODEs(r, X, grain_type, grain_min, grain_max, BPASS_data, time_slice, regionData, tau_cutoff, Grain_data, stellar_aging):
     ##########################################################################
     # Returns the ODE for dv/dr and dt/dr.
     #
@@ -919,30 +923,34 @@ def ODEs(r, X):
     ##########################################################################
     
     v, t = X
-    
-    tau_new = (h_g/r)**2*tau_i
     
     new_time = np.log10(t)
     
     L_ratio = np.interp(new_time,BPASS_data.drop('WL', axis = 1).sum(axis = 0).index.astype(float), BPASS_data.drop('WL', axis = 1).sum(axis = 0).values)/BPASS_data[str(time_slice)].sum()
     
-    L_Bol_new = L_Bol
+    L_Bol_new = regionData.L_Bol
     
-    if age:
+    tau_new = (regionData.h_g_i/r)**2 * regionData.tau_i
+    
+    if stellar_aging:
         L_Bol_new *= L_ratio
-        momentum_new = GetMC(tau_new, new_time) + get_tau_IR(r, L_Bol_new,  (h_g/r)**2 * Sigma_g)
+        momentum_new = GetMC(MC_data, tau_new, new_time, L_Edd_DF, Grain_data, tau_cutoff) + get_tau_IR(r, L_Bol_new,  (regionData.h_g_i/r)**2 * regionData.Sigma_g)
     else:
-        momentum_new = GetMC(tau_new, time_slice) + get_tau_IR(r, L_Bol_new,  (h_g/r)**2 * Sigma_g)
+        momentum_new = GetMC(MC_data, tau_new, time_slice, L_Edd_DF, Grain_data, tau_cutoff) + get_tau_IR(r, L_Bol_new,  (regionData.h_g_i/r)**2 * regionData.Sigma_g)
     
-    # LEdd = (G*c*M_g*(M_g + M_new + M_old * (r/h_g)**3))/(momentum_new * r**2)
-    
-    dvdr = (-G*(M_g + M_new + M_old*(r/h_g)**3)/r**2 + momentum_new*L_Bol_new/(c*M_g))/v
+    dvdr = (-G*(regionData.M_g + regionData.M_new + regionData.M_old*(r/regionData.h_g_i)**3)/r**2 + momentum_new*L_Bol_new/(c*regionData.M_g))/v
 
     dtdr = 1/(v*31556952)
 
+    # # Watch as I devolve into madness and just start printing every variable!
+    # print('dvdr: {}'.format(dvdr))
+    # print('dtdr: {}'.format(dtdr))
+    # print('L_Bol: {}'.format(L_Bol_new))
+    # print('momentum: {}'.format(momentum_new))
+
     return dvdr, dtdr
 
-def FluxODEs(r, X):
+def FluxODEs(r, X, regionData, stellar_aging):
     ##########################################################################
     # Returns the ODE for dv/dr and dt/dr.
     #
@@ -951,37 +959,33 @@ def FluxODEs(r, X):
     ##########################################################################
     
     v, t = X
-    
-    F_g = G / 2 * ( Sigma_g + Sigma_new + Sigma_old * min(r/H_old,1))
 
-    new_time = np.log10(t)
+    F_g = 2*np.pi*G * ( regionData.Sigma_g + regionData.Sigma_new + regionData.Sigma_old * min(r/regionData.H_old,1))
     
-    Flux = F_Bol
+    Flux = regionData.F_Bol
     
-    if age:
+    if stellar_aging:
+        new_time = np.log10(t)
         L_ratio = np.interp(new_time,BPASS_data.drop('WL', axis = 1).sum(axis = 0).index.astype(float), BPASS_data.drop('WL', axis = 1).sum(axis = 0).values)/BPASS_data[str(time_slice)].sum()
     
-        Momentum_new = GetMC(tau_i, new_time) + get_tau_IR(r, L_Bol*L_ratio,  Sigma_g)
+        Momentum_new = GetMC(MC_data, np.array(regionData.tau_i), new_time, L_Edd_DF, Grain_data, tau_cutoff) + get_tau_IR(r, regionData.L_Bol*L_ratio,  regionData.Sigma_g)
 
         Flux *= Momentum_new*L_ratio
     else:
-        Flux *= Momentum
+        Flux *= (regionData.Momentum + get_tau_IR(r, regionData.L_Bol,  regionData.Sigma_g))
     
-    if r > Radius*cm_pc:
-        Flux += C * F_gal * ((Radius*cm_pc-H_old)/r)**2
-    elif r > H_old:
-        Flux += C * F_gal * ((r-H_old)/Radius*cm_pc)**2
-    
-    dvdr = (Flux/(c*Sigma_g) - F_g)/v
+    if r > regionData.Radius*cm_pc:
+        Flux += regionData.C * regionData.F_gal * ((regionData.Radius*cm_pc-regionData.H_old)/r)**2
+    elif r > regionData.H_old:
+        Flux += regionData.C * regionData.F_gal * ((r-regionData.H_old)/regionData.Radius*cm_pc)**2
+
+    dvdr = (Flux/(c*regionData.Sigma_g) - F_g)/v
     
     dtdr = 1/(v*31556952)
     
-    # if np.random.rand() > 0.9:
-    #     print("r: {}, Edd: {}, dvdr: {}, time: {}".format(r/cm_pc,Flux/F_Edd, dvdr, new_time))
-    
     return dvdr, dtdr
 
-def runMC(BPASS_file, time_slice, num_photons, photon_reduction=0, boundary = 'reflect', scatter = 'hg', save_MC = True):
+def runMC(BPASS_file, time_slice, num_photons, Range, Grain_data, momentum_method_1, photon_reduction=0, boundary = 'reflect', scatter = 'hg', save_MC = False):
     ##############################################################################
     # Runs the monte carlo simulation for a list of atmospheric depths.
     #
@@ -1011,19 +1015,19 @@ def runMC(BPASS_file, time_slice, num_photons, photon_reduction=0, boundary = 'r
     
     BPASS_data_r = BPASS_data_r[ (BPASS_data_r.WL >= wl_min) & (BPASS_data_r.WL <= wl_max) ]
     
-    BPASS_data_r = BPASS_data_r.iloc[::100,:]
+    BPASS_data_down = BPASS_data_r
 
-    photon = BPASS_data_r[str(time_slice)] * BPASS_data_r.WL**2 / (h*c)
+    photon = BPASS_data_r[str(time_slice)] * BPASS_data_down.WL**2 / (h*c)
     
     # -----------------------------------------------------
         
     ## Find CDF
     # -----------------------------------------------------
     
-    norm = np.trapz(photon, x = BPASS_data_r.WL)
-    CDF = np.zeros_like(BPASS_data_r.WL)
+    norm = np.trapz(photon, x = BPASS_data_down.WL)
+    CDF = np.zeros_like(BPASS_data_down.WL)
     
-    for i, _ in enumerate(BPASS_data_r.WL):
+    for i, _ in enumerate(BPASS_data_down.WL):
         phot = photon[0:i]
         WL = BPASS_data_r.WL[0:i]
         CDF[i] = np.trapz(phot, x = WL) / norm
@@ -1049,8 +1053,8 @@ def runMC(BPASS_file, time_slice, num_photons, photon_reduction=0, boundary = 'r
         # Run the photons and return the mu at escape
         if photon_reduction != 0:
             num_photons = num_photons_tau[atm_i]
-        escaped_mu, boundary_momentum, escaped_momentum, initial_momentum, _ = RunPhotons(tau_atm, num_photons, boundary, scatter, PDF, Range)
-    
+        escaped_mu, boundary_momentum, escaped_momentum, initial_momentum, _ = RunPhotons(tau_atm, num_photons, boundary, scatter, PDF, Range, Grain_data)
+        print(tau_atm)
         momentum_method_1[atm_i] = (initial_momentum - escaped_momentum + boundary_momentum)/initial_momentum
     
     momentum_transfer = np.zeros(len(tau_list))
@@ -1060,11 +1064,11 @@ def runMC(BPASS_file, time_slice, num_photons, photon_reduction=0, boundary = 'r
     
     if save_MC:
         MC_data[str(time_slice)] = momentum_transfer
-        MC_data.to_csv('detailed MC {}csv'.format(BPASS_file.replace('.z',' z').replace('dat','')), index = False)
+        MC_data.to_csv('detailed MC {} {}csv'.format(grain_type, BPASS_file.replace('.z',' z').replace('dat','')), index = False)
     
     return momentum_transfer
 
-def ContinuousStarFormationSED(BPASS_data, time_list_exp, delta_t, age, rate):
+def ContinuousStarFormationSED(BPASS_data, time_list_exp, time_list, delta_t, age, rate):
     
     SED = np.zeros(100000)
     
@@ -1079,243 +1083,868 @@ def ContinuousStarFormationSED(BPASS_data, time_list_exp, delta_t, age, rate):
     
     return SED
 
-time_list = BPASS_data.columns[BPASS_data.columns != 'WL']
-
-time_list_exp = np.power(10,time_list.astype(float))
-
-
-## Get Continuous Star Formation Rate data.
-## -------------------------------------------------------------------------
-delta_t = np.zeros_like(time_list_exp)
-
-for i in range(len(delta_t)):
-    if i == 0:
-        delta_t[i] = 10**6.05
-    else:
-        delta_t[i] = 10**(6.15 + 0.1*(i-1))-10**(6.05 + 0.1*(i-1))
-
-
-
-rate_list = [1]
-
-for rate in rate_list:
-    for i, age in enumerate(time_list_exp):
+def GetRatios(L_Edd_DF, Grain_data, time_slice, grain_type = 'mix', wl_ref = 0.656):
+    ##########################################################################
+    # Returns the ratio or different kappa values, interpolating in time if
+    # necessary
+    #
+    # L_Edd_DF -- Pandas dataframe containing the <kappa_RP> data.
+    # Grain_data -- Pandas dataframe containing the non flux averaged kappas.
+    # time -- Float giving the log10 of the time in years.
+    # grain_type -- string giving the type of grain(s) to use.
+    # wl_ref -- The reference photon wavelength. Hydrogen alpha is the default.
+    ##########################################################################
+    
+    ratio_lambda_f_lambda_rp = Grain_data.Kappa_F[Grain_data.WL.round(decimals=4) == wl_ref].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL.round(decimals = 4) == wl_ref].to_numpy()
+    
+    if time in L_Edd_DF.time:
+        if grain_type == 'Gra':
+            ratio_f_lambda_rp = L_Edd_DF.kappa_av_F_Gra[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+            ratio_rp_lambda_rp = L_Edd_DF.kappa_av_RP_Gra[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
         
-        SED = ContinuousStarFormationSED(BPASS_data, time_list_exp, delta_t, age, rate)
+        elif grain_type == 'Sil':
+            
+            ratio_f_lambda_rp = L_Edd_DF.kappa_av_F_Sil[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+            ratio_rp_lambda_rp = L_Edd_DF.kappa_av_RP_Sil[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
         
-        if age == 10**6:
-            continuous_SFR = SED
+        elif grain_type == 'SiC':
+            ratio_f_lambda_rp = L_Edd_DF.kappa_av_F_SiC[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+            ratio_rp_lambda_rp = L_Edd_DF.kappa_av_RP_SiC[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+        
+        elif grain_type =='mix':
+            ratio_f_lambda_rp = (L_Edd_DF.kappa_av_F_Sil[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[0] + 
+                                 L_Edd_DF.kappa_av_F_Gra[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[1] +
+                                 L_Edd_DF.kappa_av_F_SiC[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[2]
+                                 )/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+            ratio_rp_lambda_rp = (L_Edd_DF.kappa_av_RP_Sil[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[0] +
+                                  L_Edd_DF.kappa_av_RP_Gra[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[1] +
+                                  L_Edd_DF.kappa_av_RP_SiC[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[2]
+                                  )/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+        
         else:
-            continuous_SFR = pd.concat([continuous_SFR, SED.rename(time_list[i])], axis=1)
+            print('Unknown grain type, this will not plot.')
     
-    continuous_SFR.insert(0, 'WL', BPASS_data.WL)
+    else:
+        if grain_type == 'Gra':
+            ratio_f_lambda_rp = np.interp(time_slice, L_Edd_DF.time, L_Edd_DF.kappa_av_F_Gra)/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+            ratio_rp_lambda_rp = np.interp(time_slice, L_Edd_DF.time, L_Edd_DF.kappa_av_RP_Gra)/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+        
+        elif grain_type == 'Sil':
+            
+            ratio_f_lambda_rp = np.interp(time_slice, L_Edd_DF.time, L_Edd_DF.kappa_av_F_Sil)/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+            ratio_rp_lambda_rp = np.interp(time_slice, L_Edd_DF.time, L_Edd_DF.kappa_av_RP_Sil)/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+        
+        elif grain_type == 'SiC':
+            ratio_f_lambda_rp = np.interp(time_slice, L_Edd_DF.time, L_Edd_DF.kappa_av_F_SiC)/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+            ratio_rp_lambda_rp = np.interp(time_slice, L_Edd_DF.time, L_Edd_DF.kappa_av_RP_SiC)/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+        
+        elif grain_type =='mix':
+            ratio_f_lambda_rp = (np.interp(time_slice, L_Edd_DF.time, L_Edd_DF.kappa_av_F_Sil)*grain_mix[0] + 
+                                 np.interp(time_slice, L_Edd_DF.time, L_Edd_DF.kappa_av_F_Gra)*grain_mix[1] +
+                                 np.interp(time_slice, L_Edd_DF.time, L_Edd_DF.kappa_av_F_SiC)*grain_mix[2]
+                                 )/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+            ratio_rp_lambda_rp = (np.interp(time_slice, L_Edd_DF.time, L_Edd_DF.kappa_av_RP_Sil)*grain_mix[0] +
+                                  np.interp(time_slice, L_Edd_DF.time, L_Edd_DF.kappa_av_RP_Gra)*grain_mix[1] +
+                                  np.interp(time_slice, L_Edd_DF.time, L_Edd_DF.kappa_av_RP_SiC)*grain_mix[2]
+                                  )/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
+        
+        else:
+            print('Unknown grain type, this will not plot.')
+
+    return ratio_lambda_f_lambda_rp, ratio_f_lambda_rp, ratio_rp_lambda_rp
+
+def GetTauRP(Sigma_g, kappa_RP, time, f_dg, r, h_g):
     
-    mass = delta_t.copy()
-    mass[1:] *= rate
-    mass = np.cumsum(mass)
+    tau = Sigma_g * (h_g/r)**2 * kappa_RP * f_dg
     
-    continuous_SFR.WL *= 10**-4
-    continuous_SFR = continuous_SFR[ (continuous_SFR.WL >= wl_min) & (continuous_SFR.WL <= wl_max) ]
+    return tau
+
+def PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g):
+
+    # Convert to cgs
+    h_g = h_g * cm_pc
     
-    # age_list = np.insert(age_list, [0], 10**6)
+    # Define the files to read
+    if galaxy == 'M51':
+        gal_file_1 = 'NGC5194_Full_Aperture_table_2arc.dat'
+        gal_file_2 = 'M51_3p6um_avApertures_MjySr.txt'
+        # The center of the galaxy, obtained from http://ned.ipac.caltech.edu/
+        # [RA, Dec] Numbers here are assuming that our dataset is in the J2000.0 frame.
+        gal_center = [202.484167, 47.230556] ## M51
+        Distance = 8.34*10**6 ## M51
+    elif galaxy == 'NGC6946':
+        gal_file_1 = 'NGC6946_Full_Aperture_table_2arc.dat'
+        gal_file_2 = 'NGC6946_3p6um_avApertures_MjySr_radial.txt'
+        # The center of the galaxy, obtained from http://ned.ipac.caltech.edu/
+        # [RA, Dec] Numbers here are assuming that our dataset is in the J2000.0 frame.
+        gal_center = [308.718015, 60.153915] ## NGC6946
+        Distance = 7.72*10**6 ## NGC6946
+    else:
+        print('Unknown galaxy')
     
-    # plt.plot(time_list_exp, continuous_SFR.sum(axis = 0)[1:]/mass, label = str(rate) + ' solar M/year')
-    # plt.xscale('log')
-    # plt.yscale('log')
-    # plt.plot(time_list_exp, continuous_SFR.sum(axis = 0)[1:], label = str(rate) + ' solar M/year')
-## -------------------------------------------------------------------------
-
-L_Edd_DF = pd.read_csv('L_Edd dataframe {}.csv'.format(BPASS_file.replace('.z',' z').replace('dat','')))
-
-ratio_lambda_f_lambda_rp = Grain_data.Kappa_F[Grain_data.WL.round(decimals=4) == wl_ref].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL.round(decimals = 4) == wl_ref].to_numpy()
-
-if grain_type == 'Gra':
-    ratio_f_lambda_rp = L_Edd_DF.kappa_av_F_Gra[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
-    ratio_rp_lambda_rp = L_Edd_DF.kappa_av_RP_Gra[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
-
-elif grain_type == 'Sil':
+    # start_time = time.time()
     
-    ratio_f_lambda_rp = L_Edd_DF.kappa_av_F_Sil[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
-    ratio_rp_lambda_rp = L_Edd_DF.kappa_av_RP_Sil[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
-
-elif grain_type == 'SiC':
-    ratio_f_lambda_rp = L_Edd_DF.kappa_av_F_SiC[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
-    ratio_rp_lambda_rp = L_Edd_DF.kappa_av_RP_SiC[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
-
-elif grain_type =='mix':
-    ratio_f_lambda_rp = (L_Edd_DF.kappa_av_F_Sil[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[0] + 
-                         L_Edd_DF.kappa_av_F_Gra[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[1] +
-                         L_Edd_DF.kappa_av_F_SiC[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[2]
-                         )/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
-    ratio_rp_lambda_rp = (L_Edd_DF.kappa_av_RP_Sil[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[0] +
-                          L_Edd_DF.kappa_av_RP_Gra[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[1] +
-                          L_Edd_DF.kappa_av_RP_SiC[L_Edd_DF.time == time_slice].to_numpy()*grain_mix[2]
-                          )/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
-
-else:
-    print('Unknown grain type, this will not plot.')
-
-# ## Combine galaxy data
-# ## ---------------------------------------------------------------------------
-
-# Open and read the files
-df1 = pd.read_csv(gal_file_1, delim_whitespace = True)
-df2 = pd.read_csv(gal_file_2, delim_whitespace = True)
-
-# Merge the files and delete the extra id column.
-gal_data = pd.merge(df1,df2, left_on = 'ID', right_on = 'id')
-gal_data = gal_data.drop(columns='id')
-
-# calculate the distance to galactic center.
-gal_data['Dist_to_center'] = Distance * np.sqrt(np.tan(np.radians(gal_data['RA'] - gal_center[0]))**2 + np.tan(np.radians(gal_data['Dec'] - gal_center[1]))**2)
-
-# Calculate the old stellar column height.
-
-gal_data['H_old'] = gal_data.Dist_to_center/h_scale * cm_pc
-
-# gal_data['H_old'] = h_old
-
-# Define new columns
-# Find bolometric luminosty: L_Ha / 0.00724 (Kennicutt & Evans)
-gal_data['L_Bol'] = gal_data.LHa/H_Alpha_ratio.values
-
-gal_data['F_Bol'] = gal_data.L_Bol / (np.pi * Resolution**2)
-
-# Find Sigma_old, area density of old stars.
-# in solar masses/pc^2, then converted to cgs units.
-gal_data['Sigma_star'] = 350*gal_data['3.6um_aperture_average'] / cm_pc**2 * g_Msun * np.cosh(h_g/(2*(gal_data['H_old'])))**-2
-gal_data['Sigma_g'] = gal_data.AHa/(1.086 * Grain_data.Kappa_F[Grain_data.WL.round(decimals=4) == wl_ref].to_numpy() * f_dg)
-
-# ## -------------------------------------------------------------------------
-
-
-## Get Eddington ratios for galaxies
-## ---------------------------------------------------------------------------
-
-# gal_file = 'M51 MC Complete.csv'
-# gal_file = 'M51.csv'
-
-Range = BPASS_data_r.WL.to_numpy()
-
-# gal_data = pd.read_csv(gal_file)
-
-gal_data['Momentum'] = 0
-
-# gal_data['tau'] = gal_data.AHa/(1.086 * ratio_lambda_f_lambda_rp.values[0])
-
-gal_data['tau'] = gal_data['Sigma_g'] * Grain_data.Kappa_RP[Grain_data.WL.round(decimals=4) == wl_ref].to_numpy() * f_dg
-
-L_over_M = L_Edd_DF[L_Edd_DF.time == time_slice].L_bol_BPASS/L_Edd_DF[L_Edd_DF.time == time_slice].Mass
-
-# Mass of new stars, in grams.
-gal_data['Mass_new'] = gal_data.L_Bol/(L_over_M.to_numpy()[0] * L_sun_conversion  / g_Msun)
-gal_data['Sigma_new'] = gal_data['Mass_new'] / (np.pi * Resolution**2)
-
-
-# check which model to use for the galaxy (not the MC simulation).
-# Mass of old stars in M_sun.
-gal_data['Mass_old'] = gal_data.Sigma_star * 2/3 * np.pi * h_g**3 / (gal_data['H_old'])
-
-# Mass of gas in M_sun.
-gal_data['Mass_g'] = gal_data.AHa/(1.086 * Grain_data.Kappa_F[Grain_data.WL.round(decimals=4) == wl_ref].to_numpy() * f_dg)*4*np.pi*h_g**2
-
-gal_data['Mass_tot'] = (gal_data.Mass_g + gal_data.Mass_old + gal_data.Mass_new)
-
-momentum_method_1 = np.zeros(num_atm)
-# escaped_mu = np.zeros_like(momentum_method_1)
-scatter_count = np.zeros_like(momentum_method_1)
-
-
-
-# for i, row in gal_data.iterrows():
-
-#     tau_max = row.tau
+    # Load the BPASS data
+    BPASS_data = load.model_output(BPASS_file)
+    # Make a copy of the BPASS data to downsample.
+    BPASS_data_r = BPASS_data.copy()
+    # Load the ionizing photon data.
+    ion_data = load.model_output(ionizing_file)
     
-#     escaped_mu, boundary_momentum, escaped_momentum, initial_momentum, scatter_count = RunPhotons(tau_max , num_photons, boundary, scatter, PDF, Range)
+    H_Alpha_ratio = (np.power(10,ion_data.halpha[ion_data.log_age == time_slice]))/L_sun_conversion/(BPASS_data[str(time_slice)].sum())
     
-#     momentum = (initial_momentum - escaped_momentum + boundary_momentum)/initial_momentum
+    # Convert the BPASS data to microns.
+    BPASS_data_r.WL *= 10**-4
     
-#     gal_data.loc[gal_data.ID == row.ID, 'Momentum'] = momentum
+    BPASS_data_r = BPASS_data_r[ (BPASS_data_r.WL >= wl_min) & (BPASS_data_r.WL <= wl_max) ]
     
-# MC_data = pd.read_csv('detailed MC.csv')
-momentum = GetMC(gal_data.tau.values, time_slice)
-gal_data['Momentum'] = momentum
+    time_list = BPASS_data.columns[BPASS_data.columns != 'WL']
+    
+    # kappa_df = np.zeros_like(time_list)
+        
+    # Resolution in arcseconds
+    AngularResolution = 1
+    
+    # Spatial resolution in cm
+    Resolution = Distance * np.tan(AngularResolution*np.pi/648000) * cm_pc
+    
+    time_list_exp = np.power(10,time_list.astype(float))
+    
+    Grain_data, kappa_data = GetGrainKappas(BPASS_data, time_slice, BPASS_data_r)
+    
+    # kappa_data = pd.read_csv(kappa_file)
+    
+    kappa_data.WL = kappa_data.WL.round(4)
+    Grain_data.WL = Grain_data.WL.round(4)
+    
+    Grain_data = pd.merge(Grain_data, kappa_data, left_on = 'WL', right_on = 'WL')
+    
+    ## Get Continuous Star Formation Rate data.
+    ## -------------------------------------------------------------------------
+    delta_t = np.zeros_like(time_list_exp)
+    
+    for i in range(len(delta_t)):
+        if i == 0:
+            delta_t[i] = 10**6.05
+        else:
+            delta_t[i] = 10**(6.15 + 0.1*(i-1))-10**(6.05 + 0.1*(i-1))
+    
+    
+    
+    rate_list = [1]
+    
+    for rate in rate_list:
+        for i, age in enumerate(time_list_exp):
+            
+            SED = ContinuousStarFormationSED(BPASS_data, time_list_exp, time_list, delta_t, age, rate)
+            
+            if age == 10**6:
+                continuous_SFR = SED
+            else:
+                continuous_SFR = pd.concat([continuous_SFR, SED.rename(time_list[i])], axis=1)
+        
+        continuous_SFR.insert(0, 'WL', BPASS_data.WL)
+        
+        mass = delta_t.copy()
+        mass[1:] *= rate
+        mass = np.cumsum(mass)
+        
+        continuous_SFR.WL *= 10**-4
+        continuous_SFR = continuous_SFR[ (continuous_SFR.WL >= wl_min) & (continuous_SFR.WL <= wl_max) ]
+        
+        # age_list = np.insert(age_list, [0], 10**6)
+        
+        # plt.plot(time_list_exp, continuous_SFR.sum(axis = 0)[1:]/mass, label = str(rate) + ' solar M/year')
+        # plt.xscale('log')
+        # plt.yscale('log')
+        # plt.plot(time_list_exp, continuous_SFR.sum(axis = 0)[1:], label = str(rate) + ' solar M/year')
+    ## -------------------------------------------------------------------------
+    
+    L_Edd_DF = pd.read_csv('L_Edd dataframe {}.csv'.format(BPASS_file.replace('.z',' z').replace('dat','')))
+    
+    ratio_lambda_f_lambda_rp, ratio_f_lambda_rp, ratio_rp_lambda_rp = GetRatios(L_Edd_DF, Grain_data, time_slice, grain_type, wl_ref = wl_ref)
+    
+    # ## Combine galaxy data
+    # ## ---------------------------------------------------------------------------
+    
+    # Open and read the files
+    df1 = pd.read_csv(gal_file_1, delim_whitespace = True)
+    df2 = pd.read_csv(gal_file_2, delim_whitespace = True)
+    
+    # Merge the files and delete the extra id column.
+    gal_data = pd.merge(df1,df2, left_on = 'ID', right_on = 'id')
+    gal_data = gal_data.drop(columns='id')
+    
+    # calculate the distance to galactic center.
+    if galaxy == 'M51':
+        gal_data['Dist_to_center'] = Distance * np.sqrt(np.tan(np.radians(gal_data['RA'] - gal_center[0]))**2 + np.tan(np.radians(gal_data['Dec'] - gal_center[1]))**2)
+    elif galaxy == 'NGC6946':
+        gal_data['Dist_to_center'] = Distance * np.sqrt(np.tan(np.radians(gal_data['RA_x'] - gal_center[0]))**2 + np.tan(np.radians(gal_data['Dec_x'] - gal_center[1]))**2)
+    else:
+        print('Unknown galaxy')
+        
+    # Calculate the old stellar column height.
+    
+    gal_data['H_old'] = gal_data.Dist_to_center/h_scale * cm_pc
+    
+    # hg_array = np.minimum(np.ones_like(gal_data.ID)*h_g, gal_data['H_old'])
+    
+    # gal_data['H_old'] = h_old
+    
+    # Define new columns
+    # Find bolometric luminosty: L_Ha / 0.00724 (Kennicutt & Evans)
+    gal_data['L_Bol'] = gal_data.LHa/H_Alpha_ratio.values
+    
+    gal_data['F_Bol'] = gal_data.L_Bol / (np.pi * Resolution**2)
+    
+    # Find Sigma_old, area density of old stars.
+    # in solar masses/pc^2, then converted to cgs units.
+    gal_data['Sigma_star'] = 350*gal_data['3.6um_aperture_average'] / cm_pc**2 * g_Msun * np.cosh(h_g/(2*(gal_data['H_old'])))**-2
+    gal_data['Sigma_g'] = gal_data.AHa/(1.086 * Grain_data.Kappa_F[Grain_data.WL.round(decimals=4) == wl_ref].to_numpy() * f_dg)
+    
+    # ## -------------------------------------------------------------------------
+    
+    
+    ## Get Eddington ratios for galaxies
+    ## ---------------------------------------------------------------------------
+    
+    # gal_file = 'M51 MC Complete.csv'
+    # gal_file = 'M51.csv'
+    
+    # Range = BPASS_data_r.WL.to_numpy()
+    
+    # gal_data = pd.read_csv(gal_file)
+    
+    gal_data['Momentum'] = 0
+    
+    # gal_data['tau'] = gal_data.AHa/(1.086 * ratio_lambda_f_lambda_rp.values[0])
+    
+    gal_data['tau'] = gal_data['Sigma_g'] * Grain_data.Kappa_RP[Grain_data.WL.round(decimals=4) == wl_ref].to_numpy() * f_dg
+    
+    L_over_M = L_Edd_DF[L_Edd_DF.time == time_slice].L_bol_BPASS/L_Edd_DF[L_Edd_DF.time == time_slice].Mass
+    
+    # Mass of new stars, in grams.
+    gal_data['Mass_new'] = gal_data.L_Bol/(L_over_M.to_numpy()[0] * L_sun_conversion  / g_Msun)
+    gal_data['Sigma_new'] = gal_data['Mass_new'] / (np.pi * Resolution**2)
+    
+    
+    # Mass of old stars in M_sun.
+    gal_data['Mass_old'] = gal_data.Sigma_star * 2/3 * np.pi * np.minimum(h_g,gal_data['H_old'])**3 / (gal_data['H_old'])
+    
+    # Mass of gas in M_sun.
+    gal_data['Mass_g'] = gal_data.AHa/(1.086 * Grain_data.Kappa_F[Grain_data.WL.round(decimals=4) == wl_ref].to_numpy() * f_dg)*4*np.pi*h_g**2
+    
+    gal_data['Mass_tot'] = (gal_data.Mass_g + gal_data.Mass_old + gal_data.Mass_new)
+    
+    # momentum_method_1 = np.zeros(num_atm)
+    # escaped_mu = np.zeros_like(momentum_method_1)
+    # scatter_count = np.zeros_like(momentum_method_1)
+    
+    # for i, row in gal_data.iterrows():
+    
+    #     tau_max = row.tau
+        
+    #     escaped_mu, boundary_momentum, escaped_momentum, initial_momentum, scatter_count = RunPhotons(tau_max , num_photons, boundary, scatter, PDF, Range, Grain_data)
+        
+    #     momentum = (initial_momentum - escaped_momentum + boundary_momentum)/initial_momentum
+        
+    #     gal_data.loc[gal_data.ID == row.ID, 'Momentum'] = momentum
+        
+    # MC_data = pd.read_csv('detailed MC.csv')
+    momentum = GetMC(MC_data, gal_data.tau.values, time_slice, L_Edd_DF, Grain_data, tau_cutoff = tau_cutoff)
+    gal_data['Momentum'] = momentum
+    
+    
+    gal_data['L_Edd'] = (G * c * gal_data['Mass_g'] * gal_data.Mass_tot  / (h_g**2 * (gal_data['Momentum'] + vec_tau_IR(h_g, gal_data.L_Bol, gal_data.Sigma_g))))
+    
+    gal_data['F_Edd'] = 2 * np.pi * G * c * gal_data['Sigma_g'] * (gal_data['Sigma_star'] * np.minimum(h_g /gal_data['H_old'],1) + gal_data['Sigma_g'] + gal_data['Sigma_new'])/ (gal_data['Momentum'] + vec_tau_IR(h_g, gal_data.L_Bol, gal_data.Sigma_g))
+    
+    gal_data['tau_RP'] = gal_data.tau * ratio_rp_lambda_rp
+    
+    Edd_ratio = gal_data.L_Bol/gal_data.L_Edd-1
+    Edd_ratio[Edd_ratio < 0] = 0
+    
+    gal_data['v_inf'] = np.sqrt(2*G*gal_data.Mass_tot/h_g)*np.sqrt(Edd_ratio)
+    
+    gal_data['R_UV'] = (L_Edd_DF.kappa_av_RP_Sil[L_Edd_DF.time == time_slice].to_numpy()[0] * f_dg * gal_data.Mass_g/(4*np.pi))**0.5
+    # gal_data['v_inf_2'] = ((4 * gal_data.R_UV * gal_data.L_Bol)/(gal_data.Mass_g * c))**0.5    
+
+    return gal_data, continuous_SFR, BPASS_data, Grain_data, kappa_data, L_Edd_DF
+
+def GetRegionData(gal_data, ID, dataType):
+    
+    regionData = gal_data[dataType][gal_data.ID == ID].values[0]
+    
+    return regionData
+
+# class regionData:
+#     def __init__(self, ID, gal_data):
+#         self.ID = ID
+#         self.gal_data = gal_data
+#         self.M_g = GetRegionData(gal_data, self.ID, "Mass_g")
+#         self.M_new = GetRegionData(gal_data, self.ID, "Mass_new")
+#         self.M_old = GetRegionData(gal_data, self.ID, "Mass_old")
+#         self.Sigma_old = GetRegionData(gal_data, self.ID, "Sigma_star")
+#         self.Sigma_g = GetRegionData(gal_data, self.ID, "Sigma_g")
+#         self.Sigma_new = GetRegionData(gal_data, self.ID, "Sigma_new")
+#         self.tau_i = GetRegionData(gal_data, self.ID, "tau")
+#         self.L_Bol = GetRegionData(gal_data, self.ID, "L_Bol")
+#         self.H_old = GetRegionData(gal_data, self.ID, "H_old")
+#         self.Momentum = GetRegionData(gal_data, self.ID, "Momentum")
+#         self.F_Bol = GetRegionData(gal_data, self.ID, "F_Bol")
+#         self.F_Edd = GetRegionData(gal_data, self.ID, "F_Edd")
+#         self.C = 0.5
+#         self.F_gal = GetRegionData(gal_data, self.ID, "F_Bol")
+#         self.Radius = GetRegionData(gal_data, self.ID, "Dist_to_center")
+    
+gal_data, continuous_SFR, BPASS_data, Grain_data, kappa_data, L_Edd_DF = PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g)
+
+def GetRegionVelocity(ID, gal_data):
+    
+    class regionData:
+    	pass
+     
+    regionData.M_g = GetRegionData(gal_data, ID, "Mass_g")
+    regionData.M_new = GetRegionData(gal_data, ID, "Mass_new")
+    regionData.M_old = GetRegionData(gal_data, ID, "Mass_old")
+    regionData.Sigma_old = GetRegionData(gal_data, ID, "Sigma_star")
+    regionData.Sigma_g = GetRegionData(gal_data, ID, "Sigma_g")
+    regionData.Sigma_new = GetRegionData(gal_data, ID, "Sigma_new")
+    regionData.tau_i = GetRegionData(gal_data, ID, "tau")
+    regionData.L_Bol = GetRegionData(gal_data, ID, "L_Bol")
+    regionData.H_old = GetRegionData(gal_data, ID, "H_old")
+    regionData.Momentum = GetRegionData(gal_data, ID, "Momentum")
+    regionData.F_Bol = GetRegionData(gal_data, ID, "F_Bol")
+    regionData.F_Edd = GetRegionData(gal_data, ID, "F_Edd")
+    regionData.C = 0.5
+    regionData.F_gal = GetRegionData(gal_data, ID, "F_Bol")
+    regionData.Radius = GetRegionData(gal_data, ID, "Dist_to_center")
+    regionData.h_g_i = h_g*cm_pc
+    
+    r = np.linspace(regionData.h_g_i, 100*regionData.H_old,num_bins)
+    
+    r_span = [r[0],r[-1]]
+
+    # Generate the solutions to the ODE with and without stellar aging.
+    stellar_aging = False
+    spherical_IVP_solution_no_aging = inte.solve_ivp(ODEs, r_span, [v_0, t_0], args = [grain_type, grain_min, grain_max, BPASS_data, time_slice, regionData, tau_cutoff, Grain_data, stellar_aging], method='Radau', max_step = cm_pc)
+    planar_IVP_solution_no_aging = 0#inte.solve_ivp(FluxODEs, r_span, [v_0, t_0], args = [regionData, stellar_aging], method='Radau', max_step = cm_pc)
+    
+    stellar_aging = True
+    spherical_IVP_solution_aging = inte.solve_ivp(ODEs, r_span, [v_0, t_0], args = [grain_type, grain_min, grain_max, BPASS_data, time_slice, regionData, tau_cutoff, Grain_data, stellar_aging], method='Radau', max_step = cm_pc)
+    planar_IVP_solution_aging = 0#inte.solve_ivp(FluxODEs, r_span, [v_0, t_0], args = [regionData, stellar_aging], method='Radau', max_step = cm_pc)
+    
+    return spherical_IVP_solution_no_aging, planar_IVP_solution_no_aging, spherical_IVP_solution_aging, planar_IVP_solution_aging
+
+gal_data, continuous_SFR, BPASS_data, Grain_data, kappa_data, L_Edd_DF = PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g)
+
+# spherical_IVP_solution_no_aging, planar_IVP_solution_no_aging, spherical_IVP_solution_aging, planar_IVP_solution_aging = GetRegionVelocity(region_ID, gal_data)
+
+## Plot velocities over time for spherical and planar
+# 2 Panels planar/spherical
+##############################################################################
+# fig, ax = plt.subplots(1,2, dpi = 200, sharey=True, figsize=(8, 6))
+
+# ax[0].plot(spherical_IVP_solution_no_aging.t/cm_pc, spherical_IVP_solution_no_aging.y[0]/10**5, label="No Stellar Aging")
+# ax[0].plot(spherical_IVP_solution_aging.t/cm_pc, spherical_IVP_solution_aging.y[0]/10**5, label="Stellar Aging")
+# ax[0].plot(spherical_IVP_solution_aging.t/cm_pc, spherical_IVP_solution_aging.y[1]/10**6, label="Time")
+# ax[1].plot(planar_IVP_solution_no_aging.t/cm_pc, planar_IVP_solution_no_aging.y[0]/10**5)
+# ax[1].plot(planar_IVP_solution_aging.t/cm_pc, planar_IVP_solution_aging.y[0]/10**5)
+# ax[1].plot(planar_IVP_solution_aging.t/cm_pc, planar_IVP_solution_aging.y[1]/10**6)
+
+# ax[0].set_xscale('log')
+# ax[1].set_xscale('log')
+
+# ax[0].set_yscale('log')
+# ax[1].set_yscale('log')
+
+# ax[0].set_ylim(0.1)
+# ax[1].set_ylim(0.1)
+
+# ax[0].legend(loc=4)
+
+# ax[0].set_ylabel("Velocity (km/s)")
+
+# ax[0].set_xlabel("Radius (pc)")
+# ax[1].set_xlabel("Radius (pc)")
+##############################################################################
+
+## 1 Panel
+##############################################################################
+# fig, ax1 = plt.subplots(dpi = 200, figsize=(8, 6))
+
+# ax2 = ax1.twinx()
+
+# ax1.plot(spherical_IVP_solution_no_aging.t/cm_pc, spherical_IVP_solution_no_aging.y[0]/10**5, 'b', label="No Stellar Aging")
+# ax1.plot(spherical_IVP_solution_aging.t/cm_pc, spherical_IVP_solution_aging.y[0]/10**5, 'k', label="Stellar Aging")
+# ax2.plot(spherical_IVP_solution_aging.t/cm_pc, spherical_IVP_solution_aging.y[1], 'k:', label="Time (Spherical)")
+# ax2.plot(spherical_IVP_solution_no_aging.t/cm_pc, spherical_IVP_solution_no_aging.y[1], 'b:')
+
+# ax1.plot(planar_IVP_solution_no_aging.t/cm_pc, planar_IVP_solution_no_aging.y[0]/10**5, 'b--')
+# ax1.plot(planar_IVP_solution_aging.t/cm_pc, planar_IVP_solution_aging.y[0]/10**5, 'k--')
+# ax2.plot(planar_IVP_solution_aging.t/cm_pc, planar_IVP_solution_aging.y[1], 'k.-')
+# ax2.plot(planar_IVP_solution_no_aging.t/cm_pc, planar_IVP_solution_no_aging.y[1], 'b.-', label="Time (Planar)")
+
+# ax1.set_xscale('log')
+# ax1.set_yscale('log')
+# ax2.set_xscale('log')
+# ax2.set_yscale('log')
+
+# ax1.set_ylim(0.1)
+# ax2.set_ylim(10**6)
+
+# ax1.legend(loc = 8)
+# ax2.legend(loc = 2)
+
+# ax1.set_ylabel("Velocity (km/s)")
+# ax1.set_xlabel("Radius (pc)")
+# ax2.set_ylabel("Time (Years)")
+##############################################################################
+
+## 2 Panels radius/time
+##############################################################################
+
+regionList = [162]
+
+for region in regionList:
+    
+    print(f"starting region {region}")
+    
+    spherical_IVP_solution_no_aging, planar_IVP_solution_no_aging, spherical_IVP_solution_aging, planar_IVP_solution_aging = GetRegionVelocity(region, gal_data)
+    
+    fig, ax = plt.subplots(1,2, dpi = 200, figsize=(10, 4))
+    
+    momentum = np.zeros_like(spherical_IVP_solution_no_aging.t)
+    tau = GetRegionData(gal_data, region, "tau_RP") * (h_g / (spherical_IVP_solution_no_aging.t/cm_pc))**2
+    
+    AHa = GetRegionData(gal_data, region, "AHa")
+    
+    Gamma = GetRegionData(gal_data, region, "L_Bol") / GetRegionData(gal_data, region, "L_Edd")
+    
+    v_inf = GetRegionData(gal_data, region, "v_inf") / 10**5
+    v_esc = v_inf / np.sqrt(Gamma)
+    
+    for i, r in enumerate(spherical_IVP_solution_no_aging.t):
+        momentum[i] = GetMC(MC_data, tau[i], np.log10(spherical_IVP_solution_no_aging.y[1])[i], L_Edd_DF, Grain_data, 0)
+    
+    ax[0].plot(spherical_IVP_solution_no_aging.t/cm_pc, spherical_IVP_solution_no_aging.y[0]/10**5, 'b', label="No Stellar Aging")
+    
+    # ax[0].plot(spherical_IVP_solution_no_aging.t/cm_pc, tau, 'g', label=r"$\langle\tau_{\rm RP}\rangle$")
+    # ax[0].plot(spherical_IVP_solution_no_aging.t/cm_pc, momentum, 'r', label="Momentum fraction")
+    # ax[1].plot(spherical_IVP_solution_no_aging.y[1], tau, 'g', label=r"$\langle\tau_{\rm RP}\rangle$")
+    ax[1].plot(spherical_IVP_solution_no_aging.y[1], momentum, 'r', label="Momentum fraction")
+    # ax[0].plot([spherical_IVP_solution_no_aging.t[0]/cm_pc,spherical_IVP_solution_no_aging.t[-1]/cm_pc], [v_inf, v_inf], 'purple', label = r"$V_\infty$")
+    # ax[0].plot([spherical_IVP_solution_no_aging.t[0]/cm_pc,spherical_IVP_solution_no_aging.t[-1]/cm_pc], [v_esc, v_esc], 'orange', label = r"$V_{\rm esc}$")
+    
+    # ax[0].plot(planar_IVP_solution_no_aging.t/cm_pc, planar_IVP_solution_no_aging.y[0]/10**5, 'b--')
+    ax[0].plot(spherical_IVP_solution_aging.t/cm_pc, spherical_IVP_solution_aging.y[0]/10**5, 'k', label="Stellar Aging")
+    # ax[0].plot(planar_IVP_solution_aging.t/cm_pc, planar_IVP_solution_aging.y[0]/10**5, 'k--')
+    ax[1].plot(spherical_IVP_solution_no_aging.y[1], spherical_IVP_solution_no_aging.y[0]/10**5, 'b')
+    # ax[1].plot(planar_IVP_solution_no_aging.y[1], planar_IVP_solution_no_aging.y[0]/10**5, 'b--')
+    ax[1].plot(spherical_IVP_solution_aging.y[1], spherical_IVP_solution_aging.y[0]/10**5, 'k', label="Spherical")
+    # ax[1].plot(planar_IVP_solution_aging.y[1], planar_IVP_solution_aging.y[0]/10**5, 'k--', label="Planar")
+    
+    ax[0].set_xscale('log')
+    ax[1].set_xscale('log')
+    
+    ax[0].set_yscale('log')
+    ax[1].set_yscale('log')
+    
+    ax[0].set_ylim(0.01)
+    ax[1].set_ylim(0.01)
+    
+    ax[0].legend()
+    # ax[1].legend()
+    
+
+    
+    print(f"AHa: {AHa}")
+    print(f"Gamma: {Gamma}")
+    
+    AHa_label = r'$A_{\rm H\alpha}$'
+    
+    ax[0].set_ylabel("Velocity (km/s)")
+    
+    fig.suptitle(f'Galaxy: {galaxy}     region: {region}     {AHa_label}: {AHa:.2f}     $\Gamma$: {Gamma:.2f}    R0: {h_g} pc', fontsize=16)
+    
+    ax[0].set_xlabel("Radius (pc)")
+    ax[1].set_xlabel("Time (yr)")
+    plt.tight_layout()
+    # plt.show()
+    
+    plt.savefig(f'velocity plots/{galaxy} region {region} velocity R0 {h_g}.png')
+##############################################################################
+
+## MC result plot
+##############################################################################
+# plt.figure(dpi = 200)
+
+# _, _, ratio_rp_lambda_rp_3 = GetRatios(L_Edd_DF, Grain_data, '6.5', grain_type, wl_ref = wl_ref)
+# _, _, ratio_rp_lambda_rp_10 = GetRatios(L_Edd_DF, Grain_data, '7.0', grain_type, wl_ref = wl_ref)
+# _, _, ratio_rp_lambda_rp_100 = GetRatios(L_Edd_DF, Grain_data, '8.0', grain_type, wl_ref = wl_ref)
+
+# directed_result = pd.read_csv('directed MC result.csv')
+
+# plt.plot(MC_data.tau * ratio_rp_lambda_rp, MC_data['6.0'], label = "MC result (isotropic, 1 Myr)")
+# plt.plot(MC_data.tau * ratio_rp_lambda_rp_3, MC_data['6.5'], label = "MC result (isotropic, 3 Myr)")
+# plt.plot(MC_data.tau * ratio_rp_lambda_rp_10, MC_data['7.0'], label = "MC result (isotropic, 10 Myr)")
+# # plt.plot(MC_data.tau * ratio_rp_lambda_rp_100, MC_data['8.0'], label = "MC result (isotropic, 100 Myr)")
+# plt.plot(directed_result.tau * ratio_rp_lambda_rp, directed_result['6.0'], 'purple', label = "MC result (beamed, 1 Myr)")
+# plt.plot(MC_data.tau * ratio_rp_lambda_rp, 1 - np.exp(-MC_data.tau * ratio_rp_lambda_rp), 'k', label = "Analytic solution")
 
 
-gal_data['L_Edd'] = (G * c * gal_data['Mass_g'] * gal_data.Mass_tot  / (h_g**2 * gal_data['Momentum'] + get_tau_IR(h_g, gal_data.L_Bol, gal_data.Sigma_g)))
+# plt.xscale('log')
+# plt.yscale('log')
 
-gal_data['F_Edd'] = (2 * np.pi * G * c * gal_data['Sigma_g'] * (gal_data['Sigma_star'] * np.minimum(h_g /gal_data['H_old'],1)) + gal_data['Sigma_g'] + gal_data['Sigma_new'])/ (gal_data['Momentum'])
+# plt.grid(which="major", alpha = 0.4, color='k')
+# plt.grid(which="minor", alpha = 0.8, linestyle=":")
 
-gal_data['tau_RP'] = gal_data.tau * ratio_rp_lambda_rp
+# plt.xlim(0.1,20)
+# plt.ylim(0.1,2)
 
-Edd_ratio = gal_data.L_Bol/gal_data.L_Edd-1
-Edd_ratio[Edd_ratio < 0] = 0
+# plt.xlabel(r"$\langle\tau_{\rm RP}\rangle$")
+# plt.ylabel(r"Fractional Momentum Transfer")
 
-# gal_data['v_inf_1'] = np.sqrt(2*G*gal_data.Mass_tot/h_g)*np.sqrt(Edd_ratio)
+# plt.legend(loc = 4)
 
-# gal_data['R_UV'] = (L_Edd.kappa_av_RP_Sil[L_Edd.time == time_slice].to_numpy()[0] * f_dg * gal_data.Mass_g/(4*np.pi))**0.5
-# gal_data['v_inf_2'] = ((4 * gal_data.R_UV * gal_data.L_Bol)/(gal_data.Mass_g * c))**0.5
+# plt.tight_layout()
 
-# ratio = gal_data.L_Bol[gal_data.L_Bol > gal_data.L_Edd].sum()/gal_data.L_Bol.sum()
-# print(str(h_g/cm_pc) + ' pc, Super Eddington luminosity ratio: ' + str(ratio))
-
-# superEdd = gal_data.L_Bol > gal_data.L_Edd
-# opThick = gal_data.tau_RP >= 1
-
-# evolve region velocity
-# ---------------------------------------------------------------------------
-M_g = gal_data.Mass_g[gal_data.ID == region_ID].values[0]
-M_new = gal_data.Mass_new[gal_data.ID == region_ID].values[0]
-M_old = gal_data.Mass_old[gal_data.ID == region_ID].values[0]
-Sigma_old = gal_data.Sigma_star[gal_data.ID == region_ID].values[0]
-Sigma_g = gal_data.Sigma_g[gal_data.ID == region_ID].values[0]
-Sigma_new = gal_data.Sigma_new[gal_data.ID == region_ID].values[0]
-tau_i = gal_data.tau[gal_data.ID == region_ID].values[0]
-L_Bol = gal_data.L_Bol[gal_data.ID == region_ID].values[0]
-H_old = (gal_data.H_old[gal_data.ID == region_ID].values[0])
-Momentum = gal_data.Momentum[gal_data.ID == region_ID].values[0]
-F_Bol = gal_data.F_Bol[gal_data.ID == region_ID].values[0]
-F_Edd = gal_data.F_Edd[gal_data.ID == region_ID].values[0]
-C = 0.5
-F_gal = gal_data.F_Bol.sum()
-Radius = gal_data.Dist_to_center[gal_data.ID == region_ID].values[0]
+##############################################################################
 
 
-EddRatioFunc = lambda r : L_Bol/((G * c * M_g * (M_g + M_new + Sigma_old * 2/3 * np.pi * r**3 /H_old))/(r**2 * 
-                (GetMC((h_g/r)**2*tau_i, time_slice)
-                  + get_tau_IR(r, L_Bol, (h_g/r)**2 * Sigma_g))))
+## Wibking comparison plot
+##############################################################################
 
-EddFluxRatioLowr = lambda r : F_Bol / ((G * c * Sigma_g * (Sigma_old * r /H_old) + Sigma_g + Sigma_new)/ (2 * Momentum))
+# def Integrand(x):
+    
+#     integrand = np.exp(-x)/x
+    
+#     return integrand
+
+# def Integral(x):
+#     integral = inte.quad(Integrand, x, np.inf)
+    
+#     return integral
+
+# VecInt = np.vectorize(Integral)
+
+# directed_result = pd.read_csv('directed MC result.csv')
+
+# tau_data = MC_data.tau
+
+# expt_t, _ = VecInt(tau_data*ratio_rp_lambda_rp)
+
+# plt.figure(dpi = 200)
+
+# ax = plt.gca()
+# ax.set_aspect(0.8)
+
+# plt.plot(tau_data*ratio_rp_lambda_rp, tau_data*ratio_rp_lambda_rp/(1-np.exp(-tau_data*ratio_rp_lambda_rp)), 'b--', label="Beamed single scattering")
+# plt.plot(tau_data*ratio_rp_lambda_rp, 3/2 * tau_data * ratio_rp_lambda_rp * (1+np.exp(-tau_data*ratio_rp_lambda_rp)*(tau_data*ratio_rp_lambda_rp/2 - (tau_data*ratio_rp_lambda_rp)**2 /2 -1) +(tau_data*ratio_rp_lambda_rp)**3 / 2 * (expt_t))**-1, 'k', label="isotropic single scattering")
+# plt.plot(directed_result.tau*ratio_rp_lambda_rp, directed_result.tau*ratio_rp_lambda_rp /directed_result['6.0'], 'c', label = "Beamed MC Results")
+# plt.plot(tau_data*ratio_rp_lambda_rp, tau_data*ratio_rp_lambda_rp/GetMC(MC_data, tau_data, 6.0, 0), 'g', label="Isotropic MC results, 1 Myr")
+# _, _, ratio_rp_lambda_rp = GetRatios(L_Edd_DF, Grain_data, '8.0', grain_type, wl_ref = wl_ref)
+# plt.plot(tau_data*ratio_rp_lambda_rp, tau_data*ratio_rp_lambda_rp/GetMC(MC_data, tau_data, 8.0, 0), 'r', label="Isotropic MC results, 100 Myr")
+
+# plt.xscale('log')
+# plt.yscale('log')
+
+# plt.grid(which="major", alpha = 0.4, color='k')
+# plt.grid(which="minor", alpha = 0.8, linestyle=":")
+
+# plt.xlim(0.1,10)
+# plt.ylim(0.1,20)
+
+# plt.xlabel(r"$\langle\tau_{\rm RP}\rangle$")
+# plt.ylabel(r"Eddington Flux ($gc/\kappa_{\rm F}$)")
+
+# plt.legend(loc = 4)
+
+# plt.tight_layout()
+
+##############################################################################
+    
+## Opacity / L/M plot
+##############################################################################
+
+# plt.figure(dpi=200)
+
+# fig, ax = plt.subplots(1,2, dpi = 200, sharex=True, figsize=(10, 4))
+
+# ax[0].plot(time_list_exp/10**6, L_Edd_DF.kappa_av_F_Sil*f_dg, 'b--', alpha = 0.3)
+# ax[0].plot(time_list_exp/10**6, L_Edd_DF.kappa_av_F_Gra*f_dg, 'g--', alpha = 0.3)
+# ax[0].plot(time_list_exp/10**6, L_Edd_DF.kappa_av_F_SiC*f_dg, 'r--', alpha = 0.3)
+
+# ax[0].plot(time_list_exp/10**6, L_Edd_DF.kappa_av_RP_Sil*f_dg, 'b', alpha = 0.3, label = "Sil")
+# ax[0].plot(time_list_exp/10**6, L_Edd_DF.kappa_av_RP_Gra*f_dg, 'g', alpha = 0.3, label = "Gra")
+# ax[0].plot(time_list_exp/10**6, L_Edd_DF.kappa_av_RP_SiC*f_dg, 'r', alpha = 0.3, label = "SiC")
+
+# ax[0].plot(time_list_exp/10**6, (L_Edd_DF.kappa_av_F_Sil.to_numpy()*grain_mix[0] + 
+#                                   L_Edd_DF.kappa_av_F_Gra.to_numpy()*grain_mix[1] +
+#                                   L_Edd_DF.kappa_av_F_SiC.to_numpy()*grain_mix[2])*f_dg, 'k--', label = r"$\langle \kappa_{\rm F}\rangle$ dust mix")
+
+# ax[0].plot(time_list_exp/10**6, (L_Edd_DF.kappa_av_RP_Sil.to_numpy()*grain_mix[0] + 
+#                                   L_Edd_DF.kappa_av_RP_Gra.to_numpy()*grain_mix[1] +
+#                                   L_Edd_DF.kappa_av_RP_SiC.to_numpy()*grain_mix[2])*f_dg, 'k', label = r"$\langle \kappa_{\rm RP}\rangle$ dust mix")
+
+# ax[0].plot(time_list_exp/10**6, (DF.kappa_av_RP_Sil.to_numpy()*grain_mix[0] + 
+#                                   DF.kappa_av_RP_Gra.to_numpy()*grain_mix[1] +
+#                                   DF.kappa_av_RP_SiC.to_numpy()*grain_mix[2])*f_dg, c = 'g', label = r"$\langle \kappa_{\rm RP}\rangle$ CSFR dust mix")
 
 
-# gal_data = pd.read_csv('tau test.csv')
+# ax[1].plot(time_list_exp/10**6, continuous_SFR_135_300_z_020.drop('WL', axis = 1).sum(axis = 0)/mass, 'k--', alpha = 0.3)
+# ax[1].plot(time_list_exp/10**6, BPASS_data_135_300_z_020.drop('WL', axis = 1).sum(axis = 0)/10**6, 'k', label = '135_300, z = 0.02', linewidth = 1, alpha = 0.7)
+# ax[1].plot(time_list_exp/10**6, continuous_SFR_135_100_z_020.drop('WL', axis = 1).sum(axis = 0)/mass, 'c--', alpha = 0.3)
+# ax[1].plot(time_list_exp/10**6, BPASS_data_135_100_z_020.drop('WL', axis = 1).sum(axis = 0)/10**6, 'c', label = '135_100, z = 0.02', linewidth = 1, alpha = 0.7)
+# ax[1].plot(time_list_exp/10**6, continuous_SFR_100_300_z_020.drop('WL', axis = 1).sum(axis = 0)/mass, 'g--', alpha = 0.3)
+# ax[1].plot(time_list_exp/10**6, BPASS_data_100_300_z_020.drop('WL', axis = 1).sum(axis = 0)/10**6, 'g', label = '100_300, z = 0.02', linewidth = 1, alpha = 0.7)
+# ax[1].plot(time_list_exp/10**6, continuous_SFR_100_300_z_010.drop('WL', axis = 1).sum(axis = 0)/mass, 'r--', alpha = 0.3)
+# ax[1].plot(time_list_exp/10**6, BPASS_data_100_300_z_010.drop('WL', axis = 1).sum(axis = 0)/10**6, 'r', label = '100_300, z = 0.01', linewidth = 1, alpha = 0.7)
+# ax[1].plot(time_list_exp/10**6, continuous_SFR_chab.drop('WL', axis = 1).sum(axis = 0)/mass, 'b--', alpha = 0.3)
+# ax[1].plot(time_list_exp/10**6, BPASS_data_chab.drop('WL', axis = 1).sum(axis = 0)/10**6, 'b', label = 'Chabrier, z = 0.02', linewidth = 1, alpha = 0.7)
 
-mask = gal_data.ID == region_ID
+# ax[1].plot(time_list_exp/10**6, 4*np.pi*G*c / ((L_Edd_DF.kappa_av_RP_Sil.to_numpy()*grain_mix[0] + 
+#                                   L_Edd_DF.kappa_av_RP_Gra.to_numpy()*grain_mix[1] +
+#                                   L_Edd_DF.kappa_av_RP_SiC.to_numpy()*grain_mix[2])*f_dg), c = 'k', linestyle = 'dashdot', linewidth = 2)
 
-r = np.linspace(h_g_scale*h_g, 100*H_old,num_bins)
+# ax[1].plot(time_list_exp/10**6, 4*np.pi*G*c / ((DF.kappa_av_RP_Sil.to_numpy()*grain_mix[0] + 
+#                                   DF.kappa_av_RP_Gra.to_numpy()*grain_mix[1] +
+#                                   DF.kappa_av_RP_SiC.to_numpy()*grain_mix[2])*f_dg), c = 'g', linestyle = 'dashdot', linewidth = 2)
 
-Edd_Ratio = EddFluxRatioLowr(r)
 
-delta_r = (25-h_g_scale)*h_g/num_bins
+# ax[1].text(2, 105, r"$\rm L_{\rm EDD}/M$", rotation = 7)
+# ax[1].text(1.5, 70, r"$\rm Instantaneous$", fontsize = 8, rotation = 7)
+# ax[1].text(2, 23, r"$\rm L_{\rm EDD}/M$", rotation = 7)
+# ax[1].text(1.5, 15, r"$\rm Continuous$", fontsize = 8, rotation = 7)
+# ax[1].text(4, 290, "Continuous Star Formation", rotation = -35)
+# ax[1].text(14, 1.1, "Instantaneous Star Formation", rotation = -35)
 
-print(f'Galaxy data setup done.  Time taken: {time.time() - start_time:.5}')
+# ax[0].set_xscale('log')
+# ax[1].set_xscale('log')
+# ax[0].set_yscale('log')
+# ax[1].set_yscale('log')
 
-# try:
-#     r_span = [r[Edd_Ratio > 1][0],r[-1]]
-# except:
-#     print('Region {} is not super-Eddington.'.format(region_ID))
-#     sys.exit(0)
+# ax[0].set_ylim(40,1000)
+# ax[1].set_ylim(1,10**4)
+# ax[0].set_xlim(1,10**4)
+# ax[1].set_xlim(1,10**4)
 
-# # dvdr(r, v, M_g, M_new, M_old_i, L_Bol, tau_i, Sigma_g)
+# ax[0].legend()
+# ax[1].legend()
 
-# if model == "spherical":
-#     solved = inte.solve_ivp(ODEs, r_span, [v_0, t_0], method='Radau')
-# elif model == "planar":
-#     solved = inte.solve_ivp(FluxODEs, r_span, [v_0, t_0], method='Radau', max_step = cm_pc)
-# else:
-#     print('invalid model selection, use "spherical" or "planar".')
-#     sys.exit(0)
+# ax[0].set_xlabel(r'Time (Myrs)')
+# ax[1].set_xlabel(r'Time (Myrs)')
 
+# ax[0].set_ylabel(r'$\langle \kappa_{\rm RP} \rangle$ (${\rm cm}^2/$g)')
+# ax[1].set_ylabel(r'L/M ($L_\odot/M_\odot$)')
+
+# plt.tight_layout()
+
+##############################################################################
+
+
+## Analytic ratio plot
+##############################################################################
+
+# _, _, ratio_rp_lambda_rp_3 = GetRatios(L_Edd_DF, Grain_data, '6.5', grain_type, wl_ref)
+# _, _, ratio_rp_lambda_rp_10 = GetRatios(L_Edd_DF, Grain_data, '7.0', grain_type, wl_ref)
+# _, _, ratio_rp_lambda_rp_100 = GetRatios(L_Edd_DF, Grain_data, '8.0', grain_type, wl_ref)
+
+# directed_result = pd.read_csv('directed MC result.csv')
+
+# plt.figure(dpi = 200)
+# _, _, ratio_rp_lambda_rp = GetRatios(L_Edd_DF, Grain_data, '6.0', grain_type, wl_ref)
+# plt.plot(MC_data.tau*ratio_rp_lambda_rp, MC_data['6.0']/(1-np.exp(-MC_data.tau*ratio_rp_lambda_rp)), label = '1 Myr')
+# plt.plot(MC_data.tau*ratio_rp_lambda_rp_3, MC_data['6.5']/(1-np.exp(-MC_data.tau*ratio_rp_lambda_rp_3)), label = '3 Myr')
+# plt.plot(MC_data.tau*ratio_rp_lambda_rp_10, MC_data['7.0']/(1-np.exp(-MC_data.tau*ratio_rp_lambda_rp_10)), label = '10 Myr')
+# # plt.plot(MC_data.tau*ratio_rp_lambda_rp_100, MC_data['8.0']/(1-np.exp(-MC_data.tau*ratio_rp_lambda_rp_100)), label = '100 Myr')
+# _, _, ratio_rp_lambda_rp = GetRatios(L_Edd_DF, Grain_data, '6.0', grain_type, wl_ref)
+# plt.plot(directed_result.tau*ratio_rp_lambda_rp, directed_result['6.0']/(1-np.exp(-directed_result.tau*ratio_rp_lambda_rp)), 'purple', label = 'Beamed 1 Myr')
+# plt.xscale('log')
+# plt.yscale('log')
+# plt.xlim(10**-2,100)
+# #plt.ylim(10**-2,2)
+# plt.xlabel(r'$\langle \tau_{\rm RP} \rangle$')
+# plt.ylabel('Fractional Momentum Transfer / Analytic Result')
+# plt.grid(which='major', alpha = 0.4, color = 'k')
+# plt.grid(which="minor", alpha = 0.8, linestyle=":")
+# plt.legend()
+# plt.tight_layout()
+
+##############################################################################
+
+### Galaxy map with Eddington ratio
+##############################################################################
+
+# import matplotlib
+
+# plt.figure(dpi = 200)
+
+# norm = matplotlib.colors.TwoSlopeNorm(1,vmin = min(gal_data.L_Bol / gal_data.L_Edd), vmax = max(gal_data.L_Bol / gal_data.L_Edd))
+# cmap = "jet"
+
+# plt.scatter(gal_data.xcenter,gal_data.ycenter, s = 1, c = gal_data.L_Bol / gal_data.L_Edd, norm = norm, cmap = cmap)
+# plt.axis('off')
+# plt.colorbar()
+# plt.title("Eddington ratios for subregions of M51")
+
+##############################################################################
+
+### Galaxy Histogram
+##############################################################################
+
+# fig, ax = plt.subplots(nrows = 2, ncols = 2, dpi = 200, sharey=True, sharex = True, figsize=(10,7))
+
+# bins = np.logspace(-2,2,200)
+
+# # M51 data
+# gal_data_M51_6_5, continuous_SFR, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 5)
+# gal_data_M51_6_10, _, _, _,  _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 10)
+# gal_data_M51_6_20, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 20)
+
+# gal_data_M51_7_5, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 5)
+# gal_data_M51_7_10, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 10)
+# gal_data_M51_7_20, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 20)
+
+# # NGC6946 data
+# gal_data_NGC6946_6_5, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 5)
+# gal_data_NGC6946_6_10, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 10)
+# gal_data_NGC6946_6_20, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 20)
+
+# gal_data_NGC6946_7_5, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 5)
+# gal_data_NGC6946_7_10, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 10)
+# gal_data_NGC6946_7_20, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 20)
+
+# ax[0,0].hist(gal_data_M51_6_5.L_Bol / gal_data_M51_6_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[0,0].hist(gal_data_M51_6_10.L_Bol / gal_data_M51_6_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
+# ax[0,0].hist(gal_data_M51_6_20.L_Bol / gal_data_M51_6_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+
+# ax[0,1].hist(gal_data_M51_7_5.L_Bol / gal_data_M51_7_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[0,1].hist(gal_data_M51_7_10.L_Bol / gal_data_M51_7_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
+# ax[0,1].hist(gal_data_M51_7_20.L_Bol / gal_data_M51_7_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+
+# ax[1,0].hist(gal_data_NGC6946_6_5.L_Bol / gal_data_NGC6946_6_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[1,0].hist(gal_data_NGC6946_6_10.L_Bol / gal_data_NGC6946_6_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
+# ax[1,0].hist(gal_data_NGC6946_6_20.L_Bol / gal_data_NGC6946_6_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+
+# ax[1,1].hist(gal_data_NGC6946_7_5.L_Bol / gal_data_NGC6946_7_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[1,1].hist(gal_data_NGC6946_7_10.L_Bol / gal_data_NGC6946_7_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
+# ax[1,1].hist(gal_data_NGC6946_7_20.L_Bol / gal_data_NGC6946_7_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+
+# ax[0,0].set_xscale('log')
+# ax[0,1].set_xscale('log')
+# ax[1,0].set_xscale('log')
+# ax[1,1].set_xscale('log')
+# ax[0,0].set_yscale('log')
+# ax[0,1].set_yscale('log')
+# ax[1,0].set_yscale('log')
+# ax[1,1].set_yscale('log')
+
+# ax[0,0].set_ylim(1,100)
+# ax[0,1].set_ylim(1,100)
+# ax[1,0].set_ylim(1,100)
+# ax[1,1].set_ylim(1,100)
+# ax[0,0].set_xlim(0.01)
+# ax[0,1].set_xlim(0.01)
+# ax[1,0].set_xlim(0.01)
+# ax[1,1].set_xlim(0.01)
+
+# ax[0,1].legend()
+
+# ax[1,0].set_xlabel(r'Eddington Ratio')
+# ax[1,1].set_xlabel(r'Eddington Ratio')
+# ax[0,0].set_ylabel(r'Count')
+# ax[1,0].set_ylabel(r'Count')
+
+# ax[0,0].text(0.7, 70, r'M51 (1 Myr)', fontsize=12)
+# ax[0,1].text(0.6, 70, r'M51 (10 Myr)', fontsize=12)
+# ax[1,0].text(0.5, 70, r'NGC6946 (1 Myr)', fontsize=12)
+# ax[1,1].text(0.4, 70, r'NGC6946 (10 Myr)', fontsize=12)
+
+# plt.tight_layout()
+
+##############################################################################
+
+### Galaxy data by Edd ratio
+##############################################################################
+
+# fig, ax = plt.subplots(nrows = 2, ncols = 2, dpi = 200, figsize=(10,7))
+
+# # M51 data
+# gal_data_M51_6_5, continuous_SFR, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 5)
+# gal_data_M51_6_10, _, _, _,  _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 10)
+# gal_data_M51_6_20, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 20)
+
+# gal_data_M51_7_5, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 5)
+# gal_data_M51_7_10, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 10)
+# gal_data_M51_7_20, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 20)
+
+# # NGC6946 data
+# gal_data_NGC6946_6_5, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 5)
+# gal_data_NGC6946_6_10, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 10)
+# gal_data_NGC6946_6_20, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 20)
+
+# gal_data_NGC6946_7_5, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 5)
+# gal_data_NGC6946_7_10, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 10)
+# gal_data_NGC6946_7_20, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 20)
+
+# ax[0,0].scatter(gal_data_M51_6_5.AHa, gal_data_M51_6_5.L_Bol / gal_data_M51_6_5.L_Edd, alpha = 0.5, label = "5 pc")
+# ax[0,0].scatter(gal_data_M51_6_10.AHa, gal_data_M51_6_10.L_Bol / gal_data_M51_6_10.L_Edd, alpha = 0.5, label = "10 pc")
+# ax[0,0].scatter(gal_data_M51_6_20.AHa, gal_data_M51_6_20.L_Bol / gal_data_M51_6_20.L_Edd, alpha = 0.5, label = "20 pc")
+
+# ax[0,1].scatter(gal_data_M51_6_5.Mass_tot/g_Msun, gal_data_M51_7_5.L_Bol / gal_data_M51_7_5.L_Edd, alpha = 0.5, label = "5 pc")
+# ax[0,1].scatter(gal_data_M51_6_10.Mass_tot/g_Msun, gal_data_M51_7_10.L_Bol / gal_data_M51_7_10.L_Edd, alpha = 0.5, label = "10 pc")
+# ax[0,1].scatter(gal_data_M51_6_20.Mass_tot/g_Msun, gal_data_M51_7_20.L_Bol / gal_data_M51_7_20.L_Edd, alpha = 0.5, label = "20 pc")
+
+# ax[1,0].scatter(gal_data_NGC6946_6_5.AHa, gal_data_NGC6946_6_5.L_Bol / gal_data_NGC6946_6_5.L_Edd, alpha = 0.5, label = "5 pc")
+# ax[1,0].scatter(gal_data_NGC6946_6_10.AHa, gal_data_NGC6946_6_10.L_Bol / gal_data_NGC6946_6_10.L_Edd, alpha = 0.5, label = "10 pc")
+# ax[1,0].scatter(gal_data_NGC6946_6_20.AHa, gal_data_NGC6946_6_20.L_Bol / gal_data_NGC6946_6_20.L_Edd, alpha = 0.5, label = "20 pc")
+
+# ax[1,1].scatter(gal_data_NGC6946_6_5.Mass_tot/g_Msun, gal_data_NGC6946_7_5.L_Bol / gal_data_NGC6946_7_5.L_Edd, alpha = 0.5, label = "5 pc")
+# ax[1,1].scatter(gal_data_NGC6946_6_10.Mass_tot/g_Msun, gal_data_NGC6946_7_10.L_Bol / gal_data_NGC6946_7_10.L_Edd, alpha = 0.5, label = "10 pc")
+# ax[1,1].scatter(gal_data_NGC6946_6_20.Mass_tot/g_Msun, gal_data_NGC6946_7_20.L_Bol / gal_data_NGC6946_7_20.L_Edd, alpha = 0.5, label = "20 pc")
+
+# ax[0,0].set_xscale('log')
+# ax[0,1].set_xscale('log')
+# ax[1,0].set_xscale('log')
+# ax[1,1].set_xscale('log')
+# ax[0,0].set_yscale('log')
+# ax[0,1].set_yscale('log')
+# ax[1,0].set_yscale('log')
+# ax[1,1].set_yscale('log')
+
+# ax[0,1].legend()
+
+# ax[1,0].set_xlabel(r'$A_{\rm H\alpha}$')
+# ax[1,1].set_xlabel(r'Total Mass ($M_\odot$)')
+# ax[0,0].set_ylabel(r'Eddington Ratio')
+# ax[1,0].set_ylabel(r'Eddington Ratio')
+
+# ax[0,0].text(0.4, 0.05, r'M51 (1 Myr)', fontsize=12, transform=ax[0,0].transAxes)
+# ax[0,1].text(0.35, 0.05, r'M51 (1 Myr)', fontsize=12, transform=ax[0,1].transAxes)
+# ax[1,0].text(0.3, 0.05, r'NGC6946 (1 Myr)', fontsize=12, transform=ax[1,0].transAxes)
+# ax[1,1].text(0.2, 0.05, r'NGC6946 (1 Myr)', fontsize=12, transform=ax[1,1].transAxes)
+
+# plt.tight_layout()
+
+##############################################################################
+
+
+### Galaxy map with L / M
+##############################################################################
+
+# plt.figure(dpi = 200)
+
+# # norm = matplotlib.colors.TwoSlopeNorm(1,vmin = min(gal_data.L_Bol / gal_data.Mass_tot), vmax = max(gal_data.L_Bol / gal_data.Mass_tot))
+
+# plt.scatter(gal_data.xcenter,gal_data.ycenter, s = 1, c = gal_data.L_Bol / gal_data.Mass_tot, cmap = "brg")
+# plt.axis('off')
+# plt.colorbar()
+
+##############################################################################
+
+## Old plot stuff, maybe not needed.
+##############################################################################
 # fig, ax = plt.subplots(1,2)
 
 # ax[0].plot(solved.t/cm_pc, solved.y[0]/10**5)
@@ -1334,9 +1963,9 @@ print(f'Galaxy data setup done.  Time taken: {time.time() - start_time:.5}')
 
 # p0, = host.plot(solved.t/cm_pc, solved.y[0]/10**5, label = "Solve IVP")
 # # p2, = host.plot(solved.t/cm_pc, np.sqrt(v_0 + 8*Momentum*F_Bol*(solved.t-r[0])/(Sigma_g*c) - 4*G*Sigma_g*(solved.t-r[0]) - 4*G*Sigma_new*(solved.t-r[0]) - 2*G*Sigma_old*(solved.t-r[0])**2/H_old)/(2*10**5), '--', label = "Analytic solution")
-# # host.set_xscale('log')
-# # plt.yscale('log')
-# host.set_ylim(0, 1.2*max(solved.y[0])/10**5)
+# host.set_xscale('log')
+# plt.yscale('log')
+# host.set_ylim(0.1, 1.2*max(solved.y[0])/10**5)
 # host.set_xlabel('Radius (pc)')
 # host.set_ylabel('Velocity (km/s)')
 # plt.title(r'Region {} velocity'.format(region_ID))
@@ -1365,16 +1994,15 @@ print(f'Galaxy data setup done.  Time taken: {time.time() - start_time:.5}')
 
 # print(f'Done. Time taken: {time.time() - start_time:.2f}')
 
-# Gamma_UV = gal_data.L_Bol/(4*np.pi*G*c*gal_data.Mass_tot/L_Edd.kappa_av_RP_Gra[L_Edd.time == time_slice].to_numpy())
+# Gamma_UV = gal_data.L_Bol/(4*np.pi*G*c*gal_data.Mass_tot/L_Edd_DF.kappa_av_RP_Gra[L_Edd_DF.time == time_slice].to_numpy())
 # Gamma_SS =  gal_data.L_Bol/(G*c*gal_data.Mass_g * gal_data.Mass_tot/h_g**2)
 
-# gal_data['v_inf_3'] = np.sqrt(v_0[0]**2 + 2*G*
-#                               (gal_data.Mass_tot)/
+# gal_data['v_inf_3'] = np.sqrt(v_0**2 + 2*G*(gal_data.Mass_tot)/
 #                               h_g * (2*Gamma_SS*gal_data.R_UV/h_g*(1-h_g/(2*gal_data.R_UV)) - 1))
 
 # plt.figure(dpi = 200)
 
-# # That momentum plot
+# That momentum plot
 # momentum = GetMC(np.linspace(0.001,10, 5000), 6.4)
 # plt.plot(np.linspace(0.001,10, 5000)*ratio_rp_lambda_rp, momentum, label= "MC Result")
 # plt.plot(np.linspace(0.001,10, 5000)*ratio_rp_lambda_rp, 1-np.exp(-np.linspace(0.001,10, 5000)*ratio_rp_lambda_rp), label = r"$1-e^{-\tau_{\rm RP}}$")
@@ -1417,7 +2045,7 @@ print(f'Galaxy data setup done.  Time taken: {time.time() - start_time:.5}')
 
 # func = lambda r : L_Bol/((G * c * M_g * (M_g + M_new + Sigma_old * 2/3 * np.pi * r**3 /h_old))/(r**2 * 
 #                 (np.interp((h_g/r)**2*tau_i, MC_data.tau.values, MC_data.momentum.values)
-#                  + get_tau_IR(r, L_Bol, (h_g/r)**2 * Sigma_g)))) - 1
+#                   + get_tau_IR(r, L_Bol, (h_g/r)**2 * Sigma_g)))) - 1
 
 # plt.figure(dpi = 200)
 
