@@ -6,7 +6,7 @@ import numpy as np
 import os
 
 
-# def GetKappa(folder, a_min, a_max, wl_list, RPF):
+# def GetKappa(folder, grain_min, grain_max, wl_list, RPF):
 
     
     
@@ -34,7 +34,7 @@ import os
 #         a[i] = float(grain_size)
     
 
-#     grain_mask = (a <= a_max) & (a >= a_min)
+#     grain_mask = (a <= grain_max) & (a >= grain_min)
     
 #     a = a[grain_mask]
 #     Q_ext = Q_ext[grain_mask,:]
@@ -53,7 +53,7 @@ def GetGrainData(grain_type, grain_min, grain_max, BPASS_data_r, time_slice, wl_
 
     return Grain_data, kappa_data
 
-def GetKappas(folder, a_min, a_max, wl_list, Spectra, time_slice):
+def GetKappas(folder, grain_min, grain_max, wl_list, Spectra, time_slice):
     ##########################################################################
     # This function calculates the various kappas and returns each of them as
     # numpy array.  It also returns the total luminosity and grain size.
@@ -61,7 +61,7 @@ def GetKappas(folder, a_min, a_max, wl_list, Spectra, time_slice):
     # folder = string pointing to the folder where the Draine data is stored.
     #       Each Draine dataset is split into 81 files, one for each grain size
     #       with a name in the format draine_data_Sil_0_001.
-    # a_min - float giving the minimum grain size to consider.
+    # grain_min - float giving the minimum grain size to consider.
     # m_max - float giving the maximum grain size to consider.
     # wl_list - numpy list containing all the wavelengths to be used in microns.
     # BPASS_data - a pandas dataframe containing the BPASS data.
@@ -112,7 +112,7 @@ def GetKappas(folder, a_min, a_max, wl_list, Spectra, time_slice):
     # Since we didn't have a list of all the grain sizes before now we couldn't
     # avoid interpolating all grain sizes (it's fast anyways).  So now we define
     # the boolean mask to filter data to being inside the grain size range.
-    grain_mask = (a <= a_max) & (a >= a_min)
+    grain_mask = (a <= grain_max) & (a >= grain_min)
     
     a = a[grain_mask]
     Q_ext_F = Q_ext_F[grain_mask,:]
@@ -169,9 +169,9 @@ def GetKappas(folder, a_min, a_max, wl_list, Spectra, time_slice):
     # Return our calculations.
     return kappa_av_RP, kappa_av_F, kappa_RP, kappa_F, L, a
 
-def GetTauScaling(folder, a_min, a_max, wl_list, BPASS_data, time_slice, wl_ref):
+def GetTauScaling(folder, grain_min, grain_max, wl_list, BPASS_data, time_slice, wl_ref):
     
-    kappa_av_RP, kappa_av_F, kappa_RP, kappa_F, _, _ = GetKappas(folder, a_min, a_max, wl_list, BPASS_data, time_slice)
+    kappa_av_RP, kappa_av_F, kappa_RP, kappa_F, _, _ = GetKappas(folder, grain_min, grain_max, wl_list, BPASS_data, time_slice)
     
     index = wl_list.round(decimals = 4) == wl_ref
     
@@ -183,13 +183,89 @@ def GetTauScaling(folder, a_min, a_max, wl_list, BPASS_data, time_slice, wl_ref)
     
     return df, kappa_av_RP, kappa_av_F
 
+def GetLEddDataFrame(BPASS_file, grain_min, grain_max, wl_min, wl_max, f_dg):
+    #########################################################################
+    # Gets the existing L_Edd data frame csv data or builds a new one if one
+    # has not been previously generated.
+    #
+    # BPASS_file -- String with the name of the BPASS file to read
+    # grain_min -- Float declaring the minimum grain size.
+    # grain_max -- Float declaring the maximum grain size.
+    # wl_min -- Float declaring the minimum wavelength.
+    # wl_max -- Float declaring the maximum wavelength.
+    # f_dg -- Float declaring the dust to gas ratio.
+    #########################################################################
+    
+    L_Edd_file = 'L_Edd data/L_Edd dataframe {} a {} to {}.csv'.format(BPASS_file.replace('.z',' z').replace('.dat',''), grain_min, grain_max)
+    
+    if os.path.exists(L_Edd_file):
+        L_Edd_DF = pd.read_csv(L_Edd_file)
+    else:
+        print("File does not exist, creating L Edd data file")
+        SM_file = BPASS_file.replace('spectra','starmass')
+    
+        BPASS_data = load.model_output(BPASS_file)
+        BPASS_data.WL *= 10**-4
+    
+        time_list = BPASS_data.columns[BPASS_data.columns != 'WL']
+    
+        time_list_exp = np.power(10,time_list.astype(float))
+    
+        BPASS_data = BPASS_data[ (BPASS_data.WL >= wl_min) & (BPASS_data.WL <= wl_max) ]
+        wl_list = BPASS_data.WL.to_numpy()
+    
+        kappa_av_RP = np.zeros_like(time_list)
+        kappa_av_F = np.zeros_like(time_list)
+        L = np.zeros_like(time_list)
+    
+        folder = 'Draine data Sil/'
+        for i, time_slice in enumerate(time_list):
+            kappa_av_RP[i], kappa_av_F[i], _, _, L[i], a = GetKappas(folder, grain_min, grain_max, wl_list, BPASS_data, time_slice)
+    
+        L_edd_Sil = 1.299*10**4 / (kappa_av_RP*f_dg)
+    
+        L_Edd_DF = pd.DataFrame({'time':time_list,'time exp':time_list_exp, 'L_bol_BPASS':L, 'kappa_av_RP_Sil':kappa_av_RP, 'kappa_av_F_Sil':kappa_av_F, 'L_Edd_Sil':L_edd_Sil})
+
+        folder = 'Draine data SiC/'
+        for i, time_slice in enumerate(time_list):
+            kappa_av_RP[i], kappa_av_F[i], _, _, _, _ = GetKappas(folder, grain_min, grain_max, wl_list, BPASS_data, time_slice)
+    
+        L_edd_SiC =  1.299*10**4 / (kappa_av_RP*f_dg)
+    
+        L_Edd_DF['kappa_av_RP_SiC'] = kappa_av_RP
+        L_Edd_DF['kappa_av_F_SiC'] = kappa_av_F
+        L_Edd_DF['L_Edd_SiC'] = L_edd_SiC
+    
+        folder = 'Draine data Gra/'
+        for i, time_slice in enumerate(time_list):
+            kappa_av_RP[i], kappa_av_F[i], _, _, _, _ = GetKappas(folder, grain_min, grain_max, wl_list, BPASS_data, time_slice)
+    
+        L_edd_Gra = 1.299*10**4 / (kappa_av_RP*f_dg)
+    
+        L_Edd_DF['kappa_av_RP_Gra'] = kappa_av_RP
+        L_Edd_DF['kappa_av_F_Gra'] = kappa_av_F
+        L_Edd_DF['L_Edd_Gra'] = L_edd_Gra
+
+        Mass = load.model_output(SM_file)
+    
+        M = Mass.stellar_mass + Mass.remnant_mass
+    
+        L_Edd_DF['Mass'] = M
+    
+        L_Edd_DF.to_csv(L_Edd_file, index = False)
+        
+        # This seems silly but is done for type safe reasons.
+        L_Edd_DF = pd.read_csv(L_Edd_file)
+    
+    return L_Edd_DF
+
 # # Get the tau scaling and save it to a csv
 # # -------------------------------------------------------------------
 
 # folder = 'Draine data Sil/'
 # wl_ref = 0.547
-# a_min = 0.001
-# a_max = 1
+# grain_min = 0.001
+# grain_max = 1
 
 # BPASS_file = 'spectra-bin-imf100_300.z010.dat'
 # time_slice = '6.0'
@@ -203,9 +279,9 @@ def GetTauScaling(folder, a_min, a_max, wl_list, BPASS_data, time_slice, wl_ref)
 # BPASS_data = BPASS_data[ (BPASS_data.WL >= wl_min) & (BPASS_data.WL <= wl_max) ]
 # wl_list = BPASS_data.WL.to_numpy()
 
-# df, kappa_av_RP, kappa_av_F = GetTauScaling(folder, a_min, a_max, wl_list, BPASS_data, time_slice, wl_ref)
+# df, kappa_av_RP, kappa_av_F = GetTauScaling(folder, grain_min, grain_max, wl_list, BPASS_data, time_slice, wl_ref)
 
-# # name = 'lambda ' + str(wl_ref).replace('.','_') + ' a ' + str(a_min).replace('.','_') + ' ' + str(a_max).replace('.','_') + ' ' + folder[-4:-1] +  ' time ' + time_slice + '.csv'
+# # name = 'lambda ' + str(wl_ref).replace('.','_') + ' a ' + str(grain_min).replace('.','_') + ' ' + str(grain_max).replace('.','_') + ' ' + folder[-4:-1] +  ' time ' + time_slice + '.csv'
 
 # df.to_csv(name)
 ## -------------------------------------------------------------------
@@ -222,86 +298,84 @@ def GetTauScaling(folder, a_min, a_max, wl_list, BPASS_data, time_slice, wl_ref)
 # plt.savefig('V band tau scaling.png', dpi = 200)
 ## ---------------------------------------------------------------------
 
-
-
 # Plot L_Edd
 # ------------------------------------------------------------------
 
-a_min = 0.001
-a_max = 1
+# grain_min = 0.001
+# grain_max = 1
 
-BPASS_file = 'spectra-bin-imf100_300.z001.dat'
-SM_file = BPASS_file.replace('spectra','starmass')
+# BPASS_file = 'spectra-bin-imf100_300.z001.dat'
+# SM_file = BPASS_file.replace('spectra','starmass')
 
-BPASS_data = load.model_output(BPASS_file)
-BPASS_data.WL *= 10**-4
+# BPASS_data = load.model_output(BPASS_file)
+# BPASS_data.WL *= 10**-4
 
-time_list = BPASS_data.columns[BPASS_data.columns != 'WL']
+# time_list = BPASS_data.columns[BPASS_data.columns != 'WL']
 
-time_list_exp = np.power(10,time_list.astype(float))
+# time_list_exp = np.power(10,time_list.astype(float))
 
-wl_min = 0.001
-wl_max = 10
+# wl_min = 0.001
+# wl_max = 10
 
-BPASS_data = BPASS_data[ (BPASS_data.WL >= wl_min) & (BPASS_data.WL <= wl_max) ]
-wl_list = BPASS_data.WL.to_numpy()
+# BPASS_data = BPASS_data[ (BPASS_data.WL >= wl_min) & (BPASS_data.WL <= wl_max) ]
+# wl_list = BPASS_data.WL.to_numpy()
 
-kappa_av_RP = np.zeros_like(time_list)
-kappa_av_F = np.zeros_like(time_list)
-kappa_RP = np.zeros_like(wl_list)
-kappa_F = np.zeros_like(wl_list)
-L = np.zeros_like(time_list)
+# kappa_av_RP = np.zeros_like(time_list)
+# kappa_av_F = np.zeros_like(time_list)
+# kappa_RP = np.zeros_like(wl_list)
+# kappa_F = np.zeros_like(wl_list)
+# L = np.zeros_like(time_list)
 
-fdg = 1/100
+# fdg = 1/100
 
-folder = 'Draine data Sil/'
-for i, time_slice in enumerate(time_list):
+# folder = 'Draine data Sil/'
+# for i, time_slice in enumerate(time_list):
     
-    kappa_av_RP[i], kappa_av_F[i], kappa_RP, kappa_F, L[i], a = GetKappas(folder, a_min, a_max, wl_list, BPASS_data, time_slice)
+#     kappa_av_RP[i], kappa_av_F[i], kappa_RP, kappa_F, L[i], a = GetKappas(folder, grain_min, grain_max, wl_list, BPASS_data, time_slice)
 
-L_edd_Sil = 1.299*10**4 / (kappa_av_RP*fdg)
+# L_edd_Sil = 1.299*10**4 / (kappa_av_RP*fdg)
 
-DF = pd.DataFrame({'time':time_list,'time exp':time_list_exp, 'L_bol_BPASS':L, 'kappa_av_RP_Sil':kappa_av_RP, 'kappa_av_F_Sil':kappa_av_F, 'L_Edd_Sil':L_edd_Sil})
-DF2 = pd.DataFrame({'WL':wl_list, 'kappa_RP_Sil':kappa_RP, 'kappa_F_Sil':kappa_F})
+# DF = pd.DataFrame({'time':time_list,'time exp':time_list_exp, 'L_bol_BPASS':L, 'kappa_av_RP_Sil':kappa_av_RP, 'kappa_av_F_Sil':kappa_av_F, 'L_Edd_Sil':L_edd_Sil})
+# DF2 = pd.DataFrame({'WL':wl_list, 'kappa_RP_Sil':kappa_RP, 'kappa_F_Sil':kappa_F})
 
 
 
-folder = 'Draine data SiC/'
-for i, time_slice in enumerate(time_list):
+# folder = 'Draine data SiC/'
+# for i, time_slice in enumerate(time_list):
     
-    kappa_av_RP[i], kappa_av_F[i], kappa_RP, kappa_F, _, _ = GetKappas(folder, a_min, a_max, wl_list, BPASS_data, time_slice)
+#     kappa_av_RP[i], kappa_av_F[i], kappa_RP, kappa_F, _, _ = GetKappas(folder, grain_min, grain_max, wl_list, BPASS_data, time_slice)
 
-L_edd_SiC =  1.299*10**4 / (kappa_av_RP*fdg)
+# L_edd_SiC =  1.299*10**4 / (kappa_av_RP*fdg)
 
-DF['kappa_av_RP_SiC'] = kappa_av_RP
-DF['kappa_av_F_SiC'] = kappa_av_F
-DF2['kappa_RP_SiC'] = kappa_RP
-DF2['kappa_F_SiC'] = kappa_F
-DF['L_Edd_SiC'] = L_edd_SiC
+# DF['kappa_av_RP_SiC'] = kappa_av_RP
+# DF['kappa_av_F_SiC'] = kappa_av_F
+# DF2['kappa_RP_SiC'] = kappa_RP
+# DF2['kappa_F_SiC'] = kappa_F
+# DF['L_Edd_SiC'] = L_edd_SiC
 
 
 
-folder = 'Draine data Gra/'
-for i, time_slice in enumerate(time_list):
+# folder = 'Draine data Gra/'
+# for i, time_slice in enumerate(time_list):
     
-    kappa_av_RP[i], kappa_av_F[i], kappa_RP, kappa_F, _, _ = GetKappas(folder, a_min, a_max, wl_list, BPASS_data, time_slice)
+#     kappa_av_RP[i], kappa_av_F[i], kappa_RP, kappa_F, _, _ = GetKappas(folder, grain_min, grain_max, wl_list, BPASS_data, time_slice)
 
-L_edd_Gra = 1.299*10**4 / (kappa_av_RP*fdg)
+# L_edd_Gra = 1.299*10**4 / (kappa_av_RP*fdg)
 
-DF['kappa_av_RP_Gra'] = kappa_av_RP
-DF['kappa_av_F_Gra'] = kappa_av_F
-DF2['kappa_RP_Gra'] = kappa_RP
-DF2['kappa_F_Gra'] = kappa_F
-DF['L_Edd_Gra'] = L_edd_Gra
+# DF['kappa_av_RP_Gra'] = kappa_av_RP
+# DF['kappa_av_F_Gra'] = kappa_av_F
+# DF2['kappa_RP_Gra'] = kappa_RP
+# DF2['kappa_F_Gra'] = kappa_F
+# DF['L_Edd_Gra'] = L_edd_Gra
 
 
-Mass = load.model_output(SM_file)
+# Mass = load.model_output(SM_file)
 
-M = Mass.stellar_mass + Mass.remnant_mass
+# M = Mass.stellar_mass + Mass.remnant_mass
 
-DF['Mass'] = M
+# DF['Mass'] = M
 
-# DF.to_csv('L_Edd dataframe {}.csv'.format(BPASS_file.replace('.z',' z').replace('dat','')), index = False)
+# DF.to_csv('L_Edd dataframe {} .csv'.format(BPASS_file.replace('.z',' z').replace('.dat','')), index = False)
 # # DF2.to_csv('kappa by wl.csv', index = False)
 
 # plt.plot(time_list_exp, L_edd_Sil, label = r'$L_{Edd}/M \, (Sil)$')
@@ -324,7 +398,7 @@ DF['Mass'] = M
 ## -------------------------------------------------------------------
 # time_slice = '6.0'
 
-# kappa_av_RP, kappa_av_F, kappa_RP, kappa_F, L, a = GetKappas(folder, a_min, a_max, wl_list, BPASS_data, time_slice)
+# kappa_av_RP, kappa_av_F, kappa_RP, kappa_F, L, a = GetKappas(folder, grain_min, grain_max, wl_list, BPASS_data, time_slice)
 
 # # plt.plot(wl_list, (BPASS_data[time_slice].to_numpy()*10**4*Q_ext_RP*wl_list)[0], label = r'$L_\lambda Q_{\rm ext} \lambda$')
 # plt.plot(wl_list, BPASS_data[time_slice].to_numpy()*10**4, label = r'$L_\lambda (L_{\odot}/\mu m)$')
@@ -416,15 +490,15 @@ DF['Mass'] = M
 # # --------------------------------------------------------
 # folder = 'Draine data Sil/'
 
-# a_min = 0.001
-# a_max = 10
+# grain_min = 0.001
+# grain_max = 10
 
 # wl_list = np.arange(0.001, 10.001, 0.001)
 
 
 # kappa = np.zeros_like(wl_list)
 
-# kappa, a = GetKappa(folder, a_min, a_max, wl_list, 'RP')
+# kappa, a = GetKappa(folder, grain_min, grain_max, wl_list, 'RP')
 
 
 # plt.plot(wl_list, kappa, label = r'$\kappa$')
@@ -444,7 +518,7 @@ DF['Mass'] = M
 # folder = 'Draine data Sil/'
 
 
-# a_min = 0.001
+# grain_min = 0.001
 
 # wl_list = np.arange(0.001, 1000.001, 0.001)
 
@@ -467,8 +541,8 @@ DF['Mass'] = M
 
 
 
-# for i, a_max in enumerate(a_list):
-#     kappa[i, :] = GetKappa(folder, a_min, a_max, wl_list, 'RP')
+# for i, grain_max in enumerate(a_list):
+#     kappa[i, :] = GetKappa(folder, grain_min, grain_max, wl_list, 'RP')
 
 
 # plt.plot(wl_list, kappa[18,:], label = r'a_{max} = ' + str(a_list[18]))
