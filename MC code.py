@@ -12,7 +12,7 @@ from scipy.interpolate import interpn
 import sys
 
 from read_BPASS import GetGrainData, GetKappas, GetLEddDataFrame
-from constants import cm_pc, g_Msun, L_sun_conversion, h, c, G, sigma_SB
+from constants import cm_pc, g_Msun, L_sun_conversion, h, c, G, sigma_SB, p_mass
 
 
 ##############################################################################
@@ -102,6 +102,9 @@ f_dg = 1/100
 v_0 = 100
 t_0 = np.power(10,time_slice)
 
+# Column height of Hi and CO gas in parsecs
+h_Hi = 100
+
 ## 'M51' or `NGC6946'
 galaxy = 'M51'
 
@@ -172,6 +175,31 @@ if grain_max > grain_max_def:
 #     ion_data = load.model_output(ionizing_file)
     
 #     return BPASS_data, BPASS_data_r,ion_data
+
+def CheckFiducialModel():
+    
+    grain_type_fid = "mix"
+    time_slice_fid = 6.0
+    BPASS_file_fid = "spectra-bin-imf135_300.z020.dat"
+    wl_max_fid = 10
+    wl_min_fid = 0.001
+    grain_max_fid = 1
+    grain_min_fid = 0.001
+    
+    if grain_type != grain_type_fid:
+        print("Grain mix not fiducial model")
+    if time_slice != time_slice_fid:
+        print("Time not 1 Myr")
+    if BPASS_file != BPASS_file_fid:
+        print("Non fiducial BPASS model")
+    if wl_max != wl_max_fid or wl_min != wl_min_fid:
+        print("Wavelength bounds not fiducial")
+    if grain_max != grain_max_fid or grain_min != grain_min_fid:
+        print("Grain size bounds not fiducial")
+    
+    return True
+
+CheckFiducialModel()
 
 def GetGrainKappas(BPASS_data, time_slice, BPASS_data_r, wl_ref = 0.656, grain_mix = [0.5,0.45,0.05], grain_min = 0.001, grain_max = 1, grain_type = 'mix'):
     if grain_type == "mix":
@@ -900,11 +928,8 @@ def ODEs(r, X, grain_type, grain_min, grain_max, BPASS_data, time_slice, regionD
         momentum_new = GetMC(MC_data, tau_new, new_time, L_Edd_DF, Grain_data, tau_cutoff) + get_tau_IR(r, L_Bol_new,  (regionData.h_g_i/r)**2 * regionData.Sigma_g)
     else:
         momentum_new = GetMC(MC_data, tau_new, time_slice, L_Edd_DF, Grain_data, tau_cutoff) + get_tau_IR(r, L_Bol_new,  (regionData.h_g_i/r)**2 * regionData.Sigma_g)
-        
-    # Get contributions from the rest of the galaxy
     
-    
-    dvdr = (-G*(regionData.M_g + regionData.M_new + regionData.M_old*(r/regionData.h_g_i)**3)/r**2 + momentum_new*L_Bol_new/(c*regionData.M_g))/v
+    dvdr = (-G*(regionData.M_g + regionData.M_CO_Hi * (min(r,h_Hi*cm_pc)/regionData.h_g_i)**3 + regionData.M_new + regionData.M_old*(min(r, regionData.H_old)/regionData.h_g_i)**3)/r**2 + momentum_new*L_Bol_new/(c*regionData.M_g))/v
 
     dtdr = 1/(v*31556952)
 
@@ -926,7 +951,7 @@ def FluxODEs(r, X, regionData, stellar_aging):
     
     v, t = X
 
-    F_g = 2*np.pi*G * ( regionData.Sigma_g + regionData.Sigma_new + regionData.Sigma_old * min(r/regionData.H_old,1))
+    F_g = 2*np.pi*G * ( regionData.Sigma_g + regionData.Sigma_new + regionData.Sigma_old * min(r/regionData.H_old,1) + regionData.Sigma_CO_Hi * min(r/h_Hi*cm_pc,1))
     
     Flux = regionData.F_Bol
     
@@ -1068,8 +1093,7 @@ def GetRatios(L_Edd_DF, Grain_data, time_slice, grain_type = 'mix', wl_ref = 0.6
             ratio_f_lambda_rp = L_Edd_DF.kappa_av_F_Gra[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
             ratio_rp_lambda_rp = L_Edd_DF.kappa_av_RP_Gra[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
         
-        elif grain_type == 'Sil':
-            
+        elif grain_type == 'Sil':        
             ratio_f_lambda_rp = L_Edd_DF.kappa_av_F_Sil[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
             ratio_rp_lambda_rp = L_Edd_DF.kappa_av_RP_Sil[L_Edd_DF.time == time_slice].to_numpy()/Grain_data.Kappa_RP[Grain_data.WL == wl_ref].to_numpy()
         
@@ -1134,6 +1158,7 @@ def PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g):
     if galaxy == 'M51':
         gal_file_1 = 'NGC5194_Full_Aperture_table_2arc.dat'
         gal_file_2 = 'M51_3p6um_avApertures_MjySr.txt'
+        gal_file_3 = 'NGC5194_gas_addendum.dat'
         # The center of the galaxy, obtained from http://ned.ipac.caltech.edu/
         # [RA, Dec] Numbers here are assuming that our dataset is in the J2000.0 frame.
         gal_center = [202.484167, 47.230556] ## M51
@@ -1141,6 +1166,7 @@ def PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g):
     elif galaxy == 'NGC6946':
         gal_file_1 = 'NGC6946_Full_Aperture_table_2arc.dat'
         gal_file_2 = 'NGC6946_3p6um_avApertures_MjySr_radial.txt'
+        gal_file_3 = 'NGC6946_gas_addendum.dat'
         # The center of the galaxy, obtained from http://ned.ipac.caltech.edu/
         # [RA, Dec] Numbers here are assuming that our dataset is in the J2000.0 frame.
         gal_center = [308.718015, 60.153915] ## NGC6946
@@ -1150,6 +1176,8 @@ def PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g):
     
     # start_time = time.time()
     
+    SM_file = BPASS_file.replace('spectra','starmass')
+    
     # Load the BPASS data
     BPASS_data = load.model_output(BPASS_file)
     # Make a copy of the BPASS data to downsample.
@@ -1157,6 +1185,7 @@ def PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g):
     # Load the ionizing photon data.
     ion_data = load.model_output(ionizing_file)
     yield_data = load.model_output(yields_file)
+    starmass_data = load.model_output(SM_file)
     
     H_Alpha_ratio = (np.power(10,ion_data.halpha[ion_data.log_age == time_slice]))/L_sun_conversion/(BPASS_data[str(time_slice)].sum())
     
@@ -1238,10 +1267,26 @@ def PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g):
     # Open and read the files
     df1 = pd.read_csv(gal_file_1, delim_whitespace = True)
     df2 = pd.read_csv(gal_file_2, delim_whitespace = True)
+    df3 = pd.read_csv(gal_file_3, delim_whitespace = True)
     
     # Merge the files and delete the extra id column.
     gal_data = pd.merge(df1,df2, left_on = 'ID', right_on = 'id')
     gal_data = gal_data.drop(columns='id')
+    
+    df3 = df3.drop(columns = 'RA')
+    df3 = df3.drop(columns = 'Dec')
+    
+    gal_data = pd.merge(gal_data,df3, on = "ID")
+    
+    # Replace the missing high res co with low res measurements and make a new column denoting which measurement was used.
+    mask = gal_data.highres_co > 0
+    gal_data["highres"] = False
+    gal_data["highres"][mask] = True
+    gal_data["highres_co"][~mask] = gal_data["lowres_co"][~mask]
+    
+    # Calculate rho CO and rho Hi
+    gal_data["rho_Hi"] = p_mass * gal_data.hi /(2*h_Hi*cm_pc)
+    gal_data["rho_CO"] = p_mass * gal_data.highres_co /(2*h_Hi*cm_pc)
     
     # calculate the distance to galactic center.
     if galaxy == 'M51':
@@ -1267,8 +1312,10 @@ def PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g):
     
     # Find Sigma_old, area density of old stars.
     # in solar masses/pc^2, then converted to cgs units.
-    gal_data['Sigma_star'] = 350*gal_data['3.6um_aperture_average'] / cm_pc**2 * g_Msun * np.cosh(h_g/(2*(gal_data['H_old'])))**-2
+    gal_data['Sigma_star'] = 350*gal_data['3.6um_aperture_average'] / cm_pc**2 * g_Msun
     gal_data['Sigma_g'] = gal_data.AHa/(1.086 * Grain_data.Kappa_F[Grain_data.WL.round(decimals=4) == wl_ref].to_numpy() * f_dg)
+    
+    gal_data["Sigma_CO_Hi"] = (gal_data.rho_Hi + gal_data.rho_CO) * 2*h_Hi*cm_pc
     
     # ## -------------------------------------------------------------------------
     
@@ -1295,13 +1342,17 @@ def PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g):
     gal_data['Mass_new'] = gal_data.L_Bol/(L_over_M.to_numpy()[0] * L_sun_conversion  / g_Msun)
     gal_data['Sigma_new'] = gal_data['Mass_new'] / (np.pi * Resolution**2)
     
-    # Mass of old stars in M_sun.
-    gal_data['Mass_old'] = gal_data.Sigma_star * 2/3 * np.pi * np.minimum(h_g,gal_data['H_old'])**3 / (gal_data['H_old'])
+    # Mass of old stars in M_sun. No idea where the cosh came from
+    gal_data['Mass_old'] = gal_data.Sigma_star * 2/3 * np.pi * np.minimum(h_g,gal_data['H_old'])**3 / (gal_data['H_old'])# * np.cosh(h_g/(2*(gal_data['H_old'])))**-2
     
     # Mass of gas in M_sun.
-    gal_data['Mass_g'] = gal_data.AHa/(1.086 * Grain_data.Kappa_F[Grain_data.WL.round(decimals=4) == wl_ref].to_numpy() * f_dg)*4*np.pi*h_g**2
+    gal_data['Mass_g'] = gal_data['Sigma_g']*4*np.pi*h_g**2
     
-    gal_data['Mass_tot'] = (gal_data.Mass_g + gal_data.Mass_old + gal_data.Mass_new)
+    gal_data["Mass_CO_Hi"] = 4/3 * np.pi * (gal_data.rho_CO + gal_data.rho_Hi) * np.minimum(h_g,h_Hi*cm_pc)**3
+    
+    
+    
+    gal_data['Mass_tot'] = (gal_data.Mass_g + gal_data.Mass_old + gal_data.Mass_new + gal_data.Mass_CO_Hi)
     
     # momentum_method_1 = np.zeros(num_atm)
     # escaped_mu = np.zeros_like(momentum_method_1)
@@ -1326,7 +1377,7 @@ def PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g):
     
     gal_data['L_Edd'] = (G * c * gal_data['Mass_g'] * gal_data.Mass_tot  / (h_g**2 * (gal_data['Momentum'] + vec_tau_IR(h_g, gal_data.L_Bol, gal_data.Sigma_g))))
     
-    gal_data['F_Edd'] = 2 * np.pi * G * c * gal_data['Sigma_g'] * (gal_data['Sigma_star'] * np.minimum(h_g /gal_data['H_old'],1) + gal_data['Sigma_g'] + gal_data['Sigma_new'])/ (gal_data['Momentum'] + vec_tau_IR(h_g, gal_data.L_Bol, gal_data.Sigma_g))
+    gal_data['F_Edd'] = 2 * np.pi * G * c * gal_data['Sigma_g'] * (gal_data['Sigma_star'] * np.minimum(h_g /gal_data['H_old'],1) + gal_data['Sigma_g'] + gal_data['Sigma_new'] + gal_data["Sigma_CO_Hi"] * np.minimum(h_g /(100*cm_pc),1))/ (gal_data['Momentum'] + vec_tau_IR(h_g, gal_data.L_Bol, gal_data.Sigma_g))
     
     gal_data['tau_RP'] = gal_data.tau * ratio_rp_lambda_rp
     
@@ -1338,7 +1389,7 @@ def PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g):
     gal_data['R_UV'] = (L_Edd_DF.kappa_av_RP_Sil[L_Edd_DF.time == time_slice].to_numpy()[0] * f_dg * gal_data.Mass_g/(4*np.pi))**0.5
     # gal_data['v_inf_2'] = ((4 * gal_data.R_UV * gal_data.L_Bol)/(gal_data.Mass_g * c))**0.5    
 
-    return gal_data, continuous_SFR, BPASS_data, Grain_data, kappa_data, L_Edd_DF, yield_data
+    return gal_data, continuous_SFR, BPASS_data, Grain_data, kappa_data, L_Edd_DF, yield_data, starmass_data
 
 def GetRegionData(gal_data, ID, dataType):
     
@@ -1387,6 +1438,10 @@ def GetRegionVelocity(ID, gal_data):
     regionData.F_gal = GetRegionData(gal_data, ID, "F_Bol")
     regionData.Radius = GetRegionData(gal_data, ID, "Dist_to_center")
     regionData.h_g_i = h_g*cm_pc
+    regionData.rho_CO = GetRegionData(gal_data, ID, "rho_CO")
+    regionData.rho_Hi = GetRegionData(gal_data, ID, "rho_Hi")
+    regionData.M_CO_Hi = GetRegionData(gal_data, ID, "Mass_CO_Hi")
+    regionData.Sigma_CO_Hi = GetRegionData(gal_data, ID, "Sigma_CO_Hi")
     
     r = np.linspace(regionData.h_g_i, 100*regionData.H_old,num_bins)
     
@@ -1403,21 +1458,19 @@ def GetRegionVelocity(ID, gal_data):
     
     return spherical_IVP_solution_no_aging, planar_IVP_solution_no_aging, spherical_IVP_solution_aging, planar_IVP_solution_aging
 
-gal_data, continuous_SFR, BPASS_data, Grain_data, kappa_data, L_Edd_DF, yield_data = PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g)
+gal_data, continuous_SFR, BPASS_data, Grain_data, kappa_data, L_Edd_DF, yield_data, starmass_data = PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g)
 
 # spherical_IVP_solution_no_aging, planar_IVP_solution_no_aging, spherical_IVP_solution_aging, planar_IVP_solution_aging = GetRegionVelocity(region_ID, gal_data)
 
-## Plot velocities over time for spherical and planar
-# 2 Panels planar/spherical
-##############################################################################
+# ## Plot velocities over time for spherical and planar
+# # 2 Panels planar/spherical
+# ##############################################################################
 # fig, ax = plt.subplots(1,2, dpi = 200, sharey=True, figsize=(8, 6))
 
 # ax[0].plot(spherical_IVP_solution_no_aging.t/cm_pc, spherical_IVP_solution_no_aging.y[0]/10**5, label="No Stellar Aging")
 # ax[0].plot(spherical_IVP_solution_aging.t/cm_pc, spherical_IVP_solution_aging.y[0]/10**5, label="Stellar Aging")
-# ax[0].plot(spherical_IVP_solution_aging.t/cm_pc, spherical_IVP_solution_aging.y[1]/10**6, label="Time")
 # ax[1].plot(planar_IVP_solution_no_aging.t/cm_pc, planar_IVP_solution_no_aging.y[0]/10**5)
 # ax[1].plot(planar_IVP_solution_aging.t/cm_pc, planar_IVP_solution_aging.y[0]/10**5)
-# ax[1].plot(planar_IVP_solution_aging.t/cm_pc, planar_IVP_solution_aging.y[1]/10**6)
 
 # ax[0].set_xscale('log')
 # ax[1].set_xscale('log')
@@ -1425,8 +1478,8 @@ gal_data, continuous_SFR, BPASS_data, Grain_data, kappa_data, L_Edd_DF, yield_da
 # ax[0].set_yscale('log')
 # ax[1].set_yscale('log')
 
-# ax[0].set_ylim(0.1)
-# ax[1].set_ylim(0.1)
+# ax[0].set_ylim(1)
+# ax[1].set_ylim(1)
 
 # ax[0].legend(loc=4)
 
@@ -1483,89 +1536,88 @@ gal_data, continuous_SFR, BPASS_data, Grain_data, kappa_data, L_Edd_DF, yield_da
 # gal_data["distance_aging"] = np.zeros_like(gal_data.ID)
 # gal_data["time_aging"] = np.zeros_like(gal_data.ID)
 
-# for region in regionList:
-    
-print(f"starting region_ID {region_ID}")
+   
+# print(f"starting region_ID {region_ID}")
 
-spherical_IVP_solution_no_aging, planar_IVP_solution_no_aging, spherical_IVP_solution_aging, planar_IVP_solution_aging = GetRegionVelocity(region_ID, gal_data)
+# spherical_IVP_solution_no_aging, planar_IVP_solution_no_aging, spherical_IVP_solution_aging, planar_IVP_solution_aging = GetRegionVelocity(region_ID, gal_data)
 
-fig, ax = plt.subplots(1,2, dpi = 200, figsize=(10, 4))
-ax2 = ax[0].twinx()
-ax3 = ax[1].twinx()
+# fig, ax = plt.subplots(1,2, dpi = 200, figsize=(10, 4))
+# ax2 = ax[0].twinx()
+# ax3 = ax[1].twinx()
 
-momentum = np.zeros_like(spherical_IVP_solution_no_aging.t)
-tau = GetRegionData(gal_data, region_ID, "tau_RP") * (h_g / (spherical_IVP_solution_no_aging.t/cm_pc))**2
+# momentum = np.zeros_like(spherical_IVP_solution_no_aging.t)
+# tau = GetRegionData(gal_data, region_ID, "tau_RP") * (h_g / (spherical_IVP_solution_no_aging.t/cm_pc))**2
 
-# AHa = GetRegionData(gal_data, region_ID, "AHa")
+# # AHa = GetRegionData(gal_data, region_ID, "AHa")
 
-# Gamma = GetRegionData(gal_data, region_ID, "L_Bol") / GetRegionData(gal_data, region_ID, "L_Edd")
+# # Gamma = GetRegionData(gal_data, region_ID, "L_Bol") / GetRegionData(gal_data, region_ID, "L_Edd")
 
-# v_inf = GetRegionData(gal_data, region_ID, "v_inf") / 10**5
-# v_esc = v_inf / np.sqrt(Gamma)
+# # v_inf = GetRegionData(gal_data, region_ID, "v_inf") / 10**5
+# # v_esc = v_inf / np.sqrt(Gamma)
 
-for i, r in enumerate(spherical_IVP_solution_no_aging.t):
-    momentum[i] = GetMC(MC_data, tau[i], np.log10(spherical_IVP_solution_no_aging.y[1])[i], L_Edd_DF, Grain_data, 0)
+# for i, r in enumerate(spherical_IVP_solution_no_aging.t):
+#     momentum[i] = GetMC(MC_data, tau[i], np.log10(spherical_IVP_solution_no_aging.y[1])[i], L_Edd_DF, Grain_data, 0)
 
-no_aging = ax[0].plot(spherical_IVP_solution_no_aging.t/cm_pc, spherical_IVP_solution_no_aging.y[0]/10**5, 'b', label="No Stellar Aging")
+# # no_aging = ax[0].plot(spherical_IVP_solution_no_aging.t/cm_pc, spherical_IVP_solution_no_aging.y[0]/10**5, 'b', label="No Stellar Aging")
 
-# ax[0].plot(spherical_IVP_solution_no_aging.t/cm_pc, tau, 'g', label=r"$\langle\tau_{\rm RP}\rangle$")
-mo = ax2.plot(spherical_IVP_solution_no_aging.t/cm_pc, momentum, 'r', label="Momentum fraction")
-# ax[1].plot(spherical_IVP_solution_no_aging.y[1], tau, 'g', label=r"$\langle\tau_{\rm RP}\rangle$")
-ax3.plot(spherical_IVP_solution_no_aging.y[1], momentum, 'r', label="Momentum fraction")
-# ax[0].plot([spherical_IVP_solution_no_aging.t[0]/cm_pc,spherical_IVP_solution_no_aging.t[-1]/cm_pc], [v_inf, v_inf], 'purple', label = r"$V_\infty$")
-# ax[0].plot([spherical_IVP_solution_no_aging.t[0]/cm_pc,spherical_IVP_solution_no_aging.t[-1]/cm_pc], [v_esc, v_esc], 'orange', label = r"$V_{\rm esc}$")
+# # ax[0].plot(spherical_IVP_solution_no_aging.t/cm_pc, tau, 'g', label=r"$\langle\tau_{\rm RP}\rangle$")
+# mo = ax2.plot(spherical_IVP_solution_no_aging.t/cm_pc, momentum, 'r', label="Momentum fraction")
+# # ax[1].plot(spherical_IVP_solution_no_aging.y[1], tau, 'g', label=r"$\langle\tau_{\rm RP}\rangle$")
+# ax3.plot(spherical_IVP_solution_no_aging.y[1], momentum, 'r', label="Momentum fraction")
+# # ax[0].plot([spherical_IVP_solution_no_aging.t[0]/cm_pc,spherical_IVP_solution_no_aging.t[-1]/cm_pc], [v_inf, v_inf], 'purple', label = r"$V_\infty$")
+# # ax[0].plot([spherical_IVP_solution_no_aging.t[0]/cm_pc,spherical_IVP_solution_no_aging.t[-1]/cm_pc], [v_esc, v_esc], 'orange', label = r"$V_{\rm esc}$")
 
-ax[0].plot(planar_IVP_solution_no_aging.t/cm_pc, planar_IVP_solution_no_aging.y[0]/10**5, 'b--')
-aging = ax[0].plot(spherical_IVP_solution_aging.t/cm_pc, spherical_IVP_solution_aging.y[0]/10**5, 'k', label="Stellar Aging")
-ax[0].plot(planar_IVP_solution_aging.t/cm_pc, planar_IVP_solution_aging.y[0]/10**5, 'k--')
-ax[1].plot(spherical_IVP_solution_no_aging.y[1], spherical_IVP_solution_no_aging.y[0]/10**5, 'b')
-ax[1].plot(planar_IVP_solution_no_aging.y[1], planar_IVP_solution_no_aging.y[0]/10**5, 'b--')
-ax[1].plot(spherical_IVP_solution_aging.y[1], spherical_IVP_solution_aging.y[0]/10**5, 'k', label="Spherical")
-ax[1].plot(planar_IVP_solution_aging.y[1], planar_IVP_solution_aging.y[0]/10**5, 'k--', label="Planar")
+# # ax[0].plot(planar_IVP_solution_no_aging.t/cm_pc, planar_IVP_solution_no_aging.y[0]/10**5, 'b--')
+# aging = ax[0].plot(spherical_IVP_solution_aging.t/cm_pc, spherical_IVP_solution_aging.y[0]/10**5, 'k', label="Spherical")
+# ax[0].plot(planar_IVP_solution_aging.t/cm_pc, planar_IVP_solution_aging.y[0]/10**5, 'k--')
+# # ax[1].plot(spherical_IVP_solution_no_aging.y[1], spherical_IVP_solution_no_aging.y[0]/10**5, 'b')
+# # ax[1].plot(planar_IVP_solution_no_aging.y[1], planar_IVP_solution_no_aging.y[0]/10**5, 'b--')
+# ax[1].plot(spherical_IVP_solution_aging.y[1], spherical_IVP_solution_aging.y[0]/10**5, 'k')
+# planar = ax[1].plot(planar_IVP_solution_aging.y[1], planar_IVP_solution_aging.y[0]/10**5, 'k--', label="Planar")
 
-ax[0].set_xscale('log')
-ax[1].set_xscale('log')
+# ax[0].set_xscale('log')
+# ax[1].set_xscale('log')
 
-ax[0].set_yscale('log')
-ax[1].set_yscale('log')
-ax2.set_yscale('log')
-ax3.set_yscale('log')
+# ax[0].set_yscale('log')
+# ax[1].set_yscale('log')
+# ax2.set_yscale('log')
+# ax3.set_yscale('log')
 
-ax2.axes.yaxis.set_ticklabels([])
-ax[1].axes.yaxis.set_ticklabels([])
+# ax2.axes.yaxis.set_ticklabels([])
+# ax[1].axes.yaxis.set_ticklabels([])
 
-ax[0].set_ylim(1)
-ax[1].set_ylim(1)
-# ax2.set_ylim(0.01,1)
-# ax3.set_ylim(0.01,1)
+# ax[0].set_ylim(1)
+# ax[1].set_ylim(1)
+# ax2.set_ylim(0.01,1.5)
+# ax3.set_ylim(0.01,1.5)
 
-lines = no_aging + aging + mo
-labels = [line.get_label() for line in lines]
+# lines = aging + planar + mo 
+# labels = [line.get_label() for line in lines]
 
-# gal_data.velocity_no_aging[gal_data.ID == region_ID] = np.max(spherical_IVP_solution_no_aging.y[0]/10**5)
-# gal_data.distance_no_aging[gal_data.ID == region_ID] = np.max(spherical_IVP_solution_no_aging.t/cm_pc)
-# gal_data.time_no_aging[gal_data.ID == region_ID] = np.max(spherical_IVP_solution_no_aging.y[1])
+# # gal_data.velocity_no_aging[gal_data.ID == region_ID] = np.max(spherical_IVP_solution_no_aging.y[0]/10**5)
+# # gal_data.distance_no_aging[gal_data.ID == region_ID] = np.max(spherical_IVP_solution_no_aging.t/cm_pc)
+# # gal_data.time_no_aging[gal_data.ID == region_ID] = np.max(spherical_IVP_solution_no_aging.y[1])
 
-# gal_data.velocity_aging[gal_data.ID == region_ID] = np.max(spherical_IVP_solution_aging.y[0]/10**5)
-# gal_data.distance_aging[gal_data.ID == region_ID] = np.max(spherical_IVP_solution_aging.t/cm_pc)
-# gal_data.time_aging[gal_data.ID == region_ID] = np.max(spherical_IVP_solution_aging.y[1])
+# # gal_data.velocity_aging[gal_data.ID == region_ID] = np.max(spherical_IVP_solution_aging.y[0]/10**5)
+# # gal_data.distance_aging[gal_data.ID == region_ID] = np.max(spherical_IVP_solution_aging.t/cm_pc)
+# # gal_data.time_aging[gal_data.ID == region_ID] = np.max(spherical_IVP_solution_aging.y[1])
 
-ax[0].legend(lines, labels)
-ax[1].legend()
-# ax2.legend()
+# ax[0].legend(lines, labels)
+# # ax[1].legend()
+# # ax2.legend()
 
-AHa_label = r'$A_{\rm H\alpha}$'
+# AHa_label = r'$A_{\rm H\alpha}$'
 
-ax[0].set_ylabel("Velocity (km/s)")
-ax3.set_ylabel("Momentum Transfer Function")
+# ax[0].set_ylabel("Velocity (km/s)")
+# ax3.set_ylabel("Momentum Transfer Function")
 
-# fig.suptitle(f'Galaxy: NGC 5194    Region_ID: {region_ID}    {AHa_label}: {AHa:.2f}    $\Gamma$: {Gamma:.2f}', fontsize=13)
+# # fig.suptitle(f'Galaxy: NGC 5194    Region_ID: {region_ID}    {AHa_label}: {AHa:.2f}    $\Gamma$: {Gamma:.2f}', fontsize=13)
 
-ax[1].text(2*10**6, 35, f"NGC 5194 Region {region_ID}")
+# # ax[1].text(2.5*10**6, 25, f"NGC 5194 Region {region_ID}")
 
-ax[0].set_xlabel("Radius (pc)")
-ax[1].set_xlabel("Time (yr)")
-plt.tight_layout()
+# ax[0].set_xlabel("Radius (pc)")
+# ax[1].set_xlabel("Time (yr)")
+# plt.tight_layout()
 # plt.show()
 
 # plt.savefig(f'velocity plots/{galaxy} region_ID {region_ID} velocity R0 {h_g}.png')
@@ -1687,6 +1739,244 @@ plt.tight_layout()
 
 ##############################################################################
 
+## 2 Panels three regions
+##############################################################################
+
+# gal_data_M51, continuous_SFR, BPASS_data, Grain_data, kappa_data, L_Edd_DF, yield_data, starmass_data = PrepareGalaxyData("M51", time_slice, BPASS_file, h_g)
+
+# _, _, region_162_spherical_IVP_solution_aging, region_162_planar_IVP_solution_aging = GetRegionVelocity(162, gal_data_M51)
+# _, _, region_37_spherical_IVP_solution_aging, region_37_planar_IVP_solution_aging = GetRegionVelocity(37, gal_data_M51)
+
+# fig, ax = plt.subplots(1,2, dpi = 200, figsize=(10, 4))
+# ax2 = ax[0].twinx()
+# ax3 = ax[1].twinx()
+
+# momentum_162 = np.zeros_like(region_162_spherical_IVP_solution_aging.t)
+
+# tau_162 = GetRegionData(gal_data_M51, 162, "tau_RP") * (h_g / (region_162_spherical_IVP_solution_aging.t/cm_pc))**2
+
+# for i, r in enumerate(region_162_spherical_IVP_solution_aging.t):
+#     momentum_162[i] = GetMC(MC_data, tau_162[i], np.log10(region_162_spherical_IVP_solution_aging.y[1])[i], L_Edd_DF, Grain_data, 0)
+
+# ax[0].plot(region_162_planar_IVP_solution_aging.t/cm_pc, region_162_planar_IVP_solution_aging.y[0]/10**5, 'b')
+# ax[0].plot(region_162_spherical_IVP_solution_aging.t/cm_pc, region_162_spherical_IVP_solution_aging.y[0]/10**5, 'k', label="Region 162")
+# ax[1].plot(region_162_planar_IVP_solution_aging.y[1], region_162_planar_IVP_solution_aging.y[0]/10**5, 'b')
+# ax[1].plot(region_162_spherical_IVP_solution_aging.y[1], region_162_spherical_IVP_solution_aging.y[0]/10**5, 'k')
+
+# ax2.plot(region_162_spherical_IVP_solution_aging.t/cm_pc, momentum_162, 'r')
+# ax3.plot(region_162_spherical_IVP_solution_aging.y[1], momentum_162, 'r', label = "Region 162")
+
+# momentum_37 = np.zeros_like(region_37_spherical_IVP_solution_aging.t)
+
+# tau_37 = GetRegionData(gal_data_M51, 37, "tau_RP") * (h_g / (region_37_spherical_IVP_solution_aging.t/cm_pc))**2
+
+# for i, r in enumerate(region_37_spherical_IVP_solution_aging.t):
+#     momentum_37[i] = GetMC(MC_data, tau_37[i], np.log10(region_37_spherical_IVP_solution_aging.y[1])[i], L_Edd_DF, Grain_data, 0)
+
+# ax[0].plot(region_37_planar_IVP_solution_aging.t/cm_pc, region_37_planar_IVP_solution_aging.y[0]/10**5, 'b--')
+# ax[0].plot(region_37_spherical_IVP_solution_aging.t/cm_pc, region_37_spherical_IVP_solution_aging.y[0]/10**5, 'k--', label="Region 37")
+# ax[1].plot(region_37_planar_IVP_solution_aging.y[1], region_37_planar_IVP_solution_aging.y[0]/10**5, 'b--')
+# ax[1].plot(region_37_spherical_IVP_solution_aging.y[1], region_37_spherical_IVP_solution_aging.y[0]/10**5, 'k--')
+
+# ax2.plot(region_37_spherical_IVP_solution_aging.t/cm_pc, momentum_37, 'r--')
+# ax3.plot(region_37_spherical_IVP_solution_aging.y[1], momentum_37, 'r--', label = "Region 37")
+
+# gal_data_NGC6946, continuous_SFR, BPASS_data, Grain_data, kappa_data, L_Edd_DF, yield_data, starmass_data = PrepareGalaxyData("NGC6946", time_slice, BPASS_file, h_g)
+
+# _, _, region_27_spherical_IVP_solution_aging, region_27_planar_IVP_solution_aging = GetRegionVelocity(27, gal_data_NGC6946)
+
+# momentum_27 = np.zeros_like(region_27_spherical_IVP_solution_aging.t)
+
+# tau_27 = GetRegionData(gal_data_NGC6946, 27, "tau_RP") * (h_g / (region_27_spherical_IVP_solution_aging.t/cm_pc))**2
+
+# for i, r in enumerate(region_27_spherical_IVP_solution_aging.t):
+#     momentum_27[i] = GetMC(MC_data, tau_27[i], np.log10(region_27_spherical_IVP_solution_aging.y[1])[i], L_Edd_DF, Grain_data, 0)
+    
+# for i, r in enumerate(region_27_spherical_IVP_solution_aging.t):
+#     momentum_27[i] = GetMC(MC_data, tau_27[i], np.log10(region_27_spherical_IVP_solution_aging.y[1])[i], L_Edd_DF, Grain_data, 0)
+
+# ax[0].plot(region_27_planar_IVP_solution_aging.t/cm_pc, region_27_planar_IVP_solution_aging.y[0]/10**5, 'b:')
+# ax[0].plot(region_27_spherical_IVP_solution_aging.t/cm_pc, region_27_spherical_IVP_solution_aging.y[0]/10**5, 'k:', label="Region 27")
+# ax[1].plot(region_27_planar_IVP_solution_aging.y[1], region_27_planar_IVP_solution_aging.y[0]/10**5, 'b:')
+# ax[1].plot(region_27_spherical_IVP_solution_aging.y[1], region_27_spherical_IVP_solution_aging.y[0]/10**5, 'k:')
+
+# ax2.plot(region_27_spherical_IVP_solution_aging.t/cm_pc, momentum_27, 'r:')
+# ax3.plot(region_27_spherical_IVP_solution_aging.y[1], momentum_27, 'r:', label = "Region 27")
+
+# ax[0].set_xscale('log')
+# ax[1].set_xscale('log')
+# ax[0].set_yscale('log')
+# ax[1].set_yscale('log')
+# ax2.set_yscale('log')
+# ax3.set_yscale('log')
+
+# ax2.set_ylim(0.001)
+# ax3.set_ylim(0.001)
+
+# ax2.axes.yaxis.set_ticklabels([])
+# ax[1].axes.yaxis.set_ticklabels([])
+
+# ax[0].set_ylim(1)
+# ax[1].set_ylim(1)
+
+# ax[0].legend()
+# ax3.legend()
+
+# ax[0].set_ylabel("Velocity (km/s)")
+# ax3.set_ylabel("Momentum Transfer Function")
+
+# ax[0].set_xlabel("Radius (pc)")
+# ax[1].set_xlabel("Time (yr)")
+# plt.tight_layout()
+
+# print("Data for {} pc.".format(h_g))
+# print("Region 37")
+# print("LBol: {}".format(gal_data_M51[gal_data_M51.ID == 37].L_Bol.values[0]/L_sun_conversion))
+# print("AHa: {}".format(gal_data_M51[gal_data_M51.ID == 37].AHa.values[0]))
+# print("Mgas: {}".format(gal_data_M51[gal_data_M51.ID == 37].Mass_g.values[0]/g_Msun))
+# print("Mstar: {}".format(gal_data_M51[gal_data_M51.ID == 37].Mass_new.values[0]/g_Msun))
+# print("Mold: {}".format(gal_data_M51[gal_data_M51.ID == 37].Mass_old.values[0]/g_Msun))
+# print("Ratio: {}".format(gal_data_M51[gal_data_M51.ID == 37].L_Bol.values[0]/gal_data_M51[gal_data_M51.ID == 37].L_Edd.values[0]))
+# print("Vmax: {}".format(np.max(region_37_spherical_IVP_solution_aging.y[0]/10**5)))
+# print("////////////////////////////////////////////////")
+# print("Region 162")
+# print("LBol: {}".format(gal_data_M51[gal_data_M51.ID == 162].L_Bol.values[0]/L_sun_conversion))
+# print("AHa: {}".format(gal_data_M51[gal_data_M51.ID == 162].AHa.values[0]))
+# print("Mgas: {}".format(gal_data_M51[gal_data_M51.ID == 162].Mass_g.values[0]/g_Msun))
+# print("Mstar: {}".format(gal_data_M51[gal_data_M51.ID == 162].Mass_new.values[0]/g_Msun))
+# print("Mold: {}".format(gal_data_M51[gal_data_M51.ID == 162].Mass_old.values[0]/g_Msun))
+# print("Ratio: {}".format(gal_data_M51[gal_data_M51.ID == 162].L_Bol.values[0]/gal_data_M51[gal_data_M51.ID == 162].L_Edd.values[0]))
+# print("Vmax: {}".format(np.max(region_162_spherical_IVP_solution_aging.y[0]/10**5)))
+# print("////////////////////////////////////////////////")
+# print("Region 27")
+# print("LBol: {}".format(gal_data_NGC6946[gal_data_NGC6946.ID == 27].L_Bol.values[0]/L_sun_conversion))
+# print("AHa: {}".format(gal_data_NGC6946[gal_data_NGC6946.ID == 27].AHa.values[0]))
+# print("Mgas: {}".format(gal_data_NGC6946[gal_data_NGC6946.ID == 27].Mass_g.values[0]/g_Msun))
+# print("Mstar: {}".format(gal_data_NGC6946[gal_data_NGC6946.ID == 27].Mass_new.values[0]/g_Msun))
+# print("Mold: {}".format(gal_data_NGC6946[gal_data_NGC6946.ID == 27].Mass_old.values[0]/g_Msun))
+# print("Ratio: {}".format(gal_data_NGC6946[gal_data_NGC6946.ID == 27].L_Bol.values[0]/gal_data_NGC6946[gal_data_NGC6946.ID == 27].L_Edd.values[0]))
+# print("Vmax: {}".format(np.max(region_27_spherical_IVP_solution_aging.y[0]/10**5)))
+
+##############################################################################
+
+## RP / P_CR / nkT plot
+##############################################################################
+
+# lambda_CR = 0.1
+
+# spherical_IVP_solution_no_aging, planar_IVP_solution_no_aging, spherical_IVP_solution_aging, planar_IVP_solution_aging = GetRegionVelocity(region_ID, gal_data)
+
+# t_diff = (3*(spherical_IVP_solution_aging.t)**2 / (c*lambda_CR*cm_pc)) / 31536000
+# t_exp = spherical_IVP_solution_aging.t/spherical_IVP_solution_aging.y[0] / 31536000
+# t_pion = 5*10**7 / (gal_data[gal_data.ID == region_ID].Mass_g.values[0] / p_mass * 3 / (4*np.pi*spherical_IVP_solution_aging.t)**3)
+
+# t_min = np.minimum(t_diff,t_exp)
+# t_min = np.minimum(t_min,t_pion)
+
+# time_slices = np.log10(spherical_IVP_solution_aging.y[1])
+
+# L_ratio = np.interp(time_slices,BPASS_data.drop('WL', axis = 1).sum(axis = 0).index.astype(float), BPASS_data.drop('WL', axis = 1).sum(axis = 0).values)/BPASS_data[str(time_slice)].sum()
+
+# class regionData:
+#  	pass
+
+# regionData.M_g = GetRegionData(gal_data, region_ID, "Mass_g")
+# regionData.M_new = GetRegionData(gal_data, region_ID, "Mass_new")
+# regionData.M_old = GetRegionData(gal_data, region_ID, "Mass_old")
+# regionData.Sigma_old = GetRegionData(gal_data, region_ID, "Sigma_star")
+# regionData.Sigma_g = GetRegionData(gal_data, region_ID, "Sigma_g")
+# regionData.Sigma_new = GetRegionData(gal_data, region_ID, "Sigma_new")
+# regionData.tau_i = GetRegionData(gal_data, region_ID, "tau")
+# regionData.L_Bol = GetRegionData(gal_data, region_ID, "L_Bol")
+# regionData.H_old = GetRegionData(gal_data, region_ID, "H_old")
+# regionData.Momentum = GetRegionData(gal_data, region_ID, "Momentum")
+# regionData.F_Bol = GetRegionData(gal_data, region_ID, "F_Bol")
+# regionData.F_Edd = GetRegionData(gal_data, region_ID, "F_Edd")
+# regionData.C = 0.5
+# regionData.F_gal = GetRegionData(gal_data, region_ID, "F_Bol")
+# regionData.Radius = GetRegionData(gal_data, region_ID, "Dist_to_center")
+# regionData.h_g_i = h_g*cm_pc
+
+# # _, _, ratio_rp_lambda_rp = GetRatios(L_Edd_DF, Grain_data, time_slice, grain_type, wl_ref = wl_ref)
+
+# # if includeWholeGalaxy:
+# #     L_Bol_new = regionData.L_Bol * (1 - np.exp(-regionData.tau_i*ratio_rp_lambda_rp) + np.sum(gal_data.AHa_ratio_f * np.sin(np.arctan(r/gal_data.dist_to_ref/cm_pc))))
+# # else:
+#     # L_Bol_new = regionData.L_Bol
+
+# tau_new = (regionData.h_g_i/spherical_IVP_solution_aging.t)**2 * regionData.tau_i
+
+# L_Bol_new = L_ratio*regionData.L_Bol
+
+# momentum_new = np.zeros_like(spherical_IVP_solution_aging.t)
+
+# for i, r in enumerate(spherical_IVP_solution_aging.t):
+#     momentum_new[i] = GetMC(MC_data, tau_new[i], time_slices[i], L_Edd_DF, Grain_data, tau_cutoff) + get_tau_IR(r, L_Bol_new,  (regionData.h_g_i/r)**2 * regionData.Sigma_g)
+
+# RP = momentum_new * L_Bol_new / c / (4*np.pi * spherical_IVP_solution_aging.t**2) * 6.242*10**11
+
+# E_dot_CR = 0.1*np.interp(time_slices, yield_data.log_age, yield_data.E_wind.values)/ 10**6 * regionData.M_new/g_Msun*2*10**30
+
+# P_dot_CR = E_dot_CR*t_min/(4*np.pi*(spherical_IVP_solution_aging.t)**3) * 6.242*10**18
+
+# k = 8.617333262 * 10**-5
+
+# T = 10**4
+
+# alpha_rec = 10**-14
+
+# LHa_ratio = np.interp(time_slices, BPASS_data.drop('WL', axis = 1).sum(axis = 0).index.astype(float), BPASS_data[BPASS_data.WL == 656].drop('WL', axis = 1).values[0])/BPASS_data[(BPASS_data.WL == 656)][str(time_slice)].values
+
+# LHa = gal_data[gal_data.ID == region_ID].LHa.values * LHa_ratio
+
+# n = np.sqrt(LHa / (alpha_rec * 4/3*np.pi*(spherical_IVP_solution_aging.t)**3))
+
+# plt.figure(dpi = 200)
+# plt.plot(spherical_IVP_solution_aging.t/cm_pc, P_dot_CR, label = r"$P_{\rm CR}$")
+# plt.plot(spherical_IVP_solution_aging.t/cm_pc, RP, label = "RP")
+# plt.plot(spherical_IVP_solution_aging.t/cm_pc, n*k*T, label = "nkT")
+# plt.xscale('log')
+# plt.yscale('log')
+# plt.xlabel('Distance (pc)')
+# plt.legend()
+# plt.ylabel(r'P $(\rm{ev/cm}^3)$')
+
+
+##############################################################################
+
+## Plot L gamma
+#############################################################################
+
+# lambda_CR = 0.01
+
+# class regionData:
+#  	pass
+
+# regionData.M_new = GetRegionData(gal_data, region_ID, "Mass_new")
+
+
+# spherical_IVP_solution_no_aging, planar_IVP_solution_no_aging, spherical_IVP_solution_aging, planar_IVP_solution_aging = GetRegionVelocity(region_ID, gal_data)
+
+# t_diff = (3*(spherical_IVP_solution_aging.t)**2 / (c*lambda_CR*cm_pc)) / 31536000
+# t_pion = 5*10**7 / (gal_data[gal_data.ID == region_ID].Mass_g.values[0] / p_mass * 3 / (4*np.pi*spherical_IVP_solution_aging.t)**3)
+
+# time_slices = np.log10(spherical_IVP_solution_aging.y[1])
+
+# E_dot_CR = 0.1*np.interp(time_slices, yield_data.log_age, yield_data.E_wind.values)/ 10**6 * regionData.M_new/g_Msun*2*10**30
+
+# L_gamma = E_dot_CR / 3 * np.minimum(np.ones_like(t_diff),np.sqrt(np.divide(t_diff,t_pion))) * 8.241*10**-35
+
+# plt.figure(dpi = 200)
+# plt.plot(spherical_IVP_solution_aging.t/cm_pc, L_gamma)
+# plt.xscale('log')
+# plt.yscale('log')
+# plt.xlabel('Distance (pc)')
+# plt.ylabel(r'$L_\gamma\,(L_{\odot})$')
+
+##############################################################################
+
+
+
 ## MC result plot
 #############################################################################
 # plt.figure(dpi = 200)
@@ -1715,7 +2005,7 @@ plt.tight_layout()
 # plt.ylim(0.1,2)
 
 # plt.xlabel(r"$\langle\tau_{\rm RP}\rangle$")
-# plt.ylabel(r"Fractional Momentum Transfer")
+# plt.ylabel(r"Fractional Momentum Transfer, $f_{(\langle \rm RP \rangle)}$")
 
 # plt.legend(loc = 4)
 
@@ -1865,16 +2155,16 @@ plt.tight_layout()
 # gal_data, continuous_SFR, BPASS_data, Grain_data, kappa_data, L_Edd_DF_001_1, _ = PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g)
 # grain_min = 0.001
 # grain_max = 10
-# _, _, _, _, _, L_Edd_DF_001_10, _ = PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g)
+# _, _, _, _, _, L_Edd_DF_001_10, _, _ = PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g)
 # grain_min = 0.01
 # grain_max = 1
-# _, _, _, _, _, L_Edd_DF_01_1, _ = PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g)
+# _, _, _, _, _, L_Edd_DF_01_1, _, _ = PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g)
 # grain_min = 0.001
 # grain_max = 0.1
-# _, _, _, _, _, L_Edd_DF_001_01, _ = PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g)
+# _, _, _, _, _, L_Edd_DF_001_01, _, _ = PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g)
 # grain_min = 0.01
 # grain_max = 10
-# _, _, _, _, _, L_Edd_DF_01_10, _ = PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g)
+# _, _, _, _, _, L_Edd_DF_01_10, _, _ = PrepareGalaxyData(galaxy, time_slice, BPASS_file, h_g)
 
 # time_list = BPASS_data.columns[BPASS_data.columns != 'WL']
 # time_list_exp = np.power(10,time_list.astype(float))
@@ -1963,55 +2253,63 @@ plt.tight_layout()
 
 ##############################################################################
 
-### Galaxy Histogram
+### Galaxy Histograms - Planar
 ##############################################################################
 
 # # M51 data
-# gal_data_M51_6_5, continuous_SFR, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 5)
-# gal_data_M51_6_10, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 10)
-# gal_data_M51_6_20, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 20)
+# gal_data_M51_6_5, continuous_SFR, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 5)
+# gal_data_M51_6_10, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 10)
+# gal_data_M51_6_20, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 20)
+# gal_data_M51_6_40, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 40)
 
-# gal_data_M51_7_5, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 5)
-# gal_data_M51_7_10, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 10)
-# gal_data_M51_7_20, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 20)
+# gal_data_M51_7_5, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 5)
+# gal_data_M51_7_10, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 10)
+# gal_data_M51_7_20, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 20)
+# gal_data_M51_7_40, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 40)
 
 # # NGC6946 data
-# gal_data_NGC6946_6_5, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 5)
-# gal_data_NGC6946_6_10, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 10)
-# gal_data_NGC6946_6_20, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 20)
+# gal_data_NGC6946_6_5, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 5)
+# gal_data_NGC6946_6_10, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 10)
+# gal_data_NGC6946_6_20, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 20)
+# gal_data_NGC6946_6_40, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 40)
 
-# gal_data_NGC6946_7_5, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 5)
-# gal_data_NGC6946_7_10, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 10)
-# gal_data_NGC6946_7_20, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 20)
+# gal_data_NGC6946_7_5, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 5)
+# gal_data_NGC6946_7_10, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 10)
+# gal_data_NGC6946_7_20, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 20)
+# gal_data_NGC6946_7_40, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 40)
 
 # fig, ax = plt.subplots(nrows = 2, ncols = 2, dpi = 200, sharey=True, figsize=(10,7))
 
-# bins = np.logspace(-2,2,200)
+# bins = np.logspace(-3,2,200)
 
 # ymin = 1
 # ymax = 100
 
-# ax[0,0].hist(gal_data_M51_6_5.L_Bol / gal_data_M51_6_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
-# ax[0,0].hist(gal_data_M51_6_10.L_Bol / gal_data_M51_6_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
-# ax[0,0].hist(gal_data_M51_6_20.L_Bol / gal_data_M51_6_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# # ax[0,0].hist(gal_data_M51_6_5.F_Bol / gal_data_M51_6_5.F_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[0,0].hist(gal_data_M51_6_10.F_Bol / gal_data_M51_6_10.F_Edd, bins = bins, alpha = 0.5, label = "10 pc", color='C1')
+# # ax[0,0].hist(gal_data_M51_6_20.F_Bol / gal_data_M51_6_20.F_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# ax[0,0].hist(gal_data_M51_6_40.F_Bol / gal_data_M51_6_40.F_Edd, bins = bins, alpha = 0.5, label = "40 pc", color='C3')
 
 # ax[0,0].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
 
-# ax[0,1].hist(gal_data_M51_7_5.L_Bol / gal_data_M51_7_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
-# ax[0,1].hist(gal_data_M51_7_10.L_Bol / gal_data_M51_7_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
-# ax[0,1].hist(gal_data_M51_7_20.L_Bol / gal_data_M51_7_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# # ax[0,1].hist(gal_data_M51_7_5.F_Bol / gal_data_M51_7_5.F_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[0,1].hist(gal_data_M51_7_10.F_Bol / gal_data_M51_7_10.F_Edd, bins = bins, alpha = 0.5, label = "10 pc", color='C1')
+# # ax[0,1].hist(gal_data_M51_7_20.F_Bol / gal_data_M51_7_20.F_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# ax[0,1].hist(gal_data_M51_7_40.F_Bol / gal_data_M51_7_40.F_Edd, bins = bins, alpha = 0.5, label = "40 pc", color='C3')
 
 # ax[0,1].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
 
-# ax[1,0].hist(gal_data_NGC6946_6_5.L_Bol / gal_data_NGC6946_6_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
-# ax[1,0].hist(gal_data_NGC6946_6_10.L_Bol / gal_data_NGC6946_6_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
-# ax[1,0].hist(gal_data_NGC6946_6_20.L_Bol / gal_data_NGC6946_6_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# # ax[1,0].hist(gal_data_NGC6946_6_5.F_Bol / gal_data_NGC6946_6_5.F_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[1,0].hist(gal_data_NGC6946_6_10.F_Bol / gal_data_NGC6946_6_10.F_Edd, bins = bins, alpha = 0.5, label = "10 pc", color='C1')
+# # ax[1,0].hist(gal_data_NGC6946_6_20.F_Bol / gal_data_NGC6946_6_20.F_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# ax[1,0].hist(gal_data_NGC6946_6_40.F_Bol / gal_data_NGC6946_6_40.F_Edd, bins = bins, alpha = 0.5, label = "40 pc", color='C3')
 
 # ax[1,0].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
 
-# ax[1,1].hist(gal_data_NGC6946_7_5.L_Bol / gal_data_NGC6946_7_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
-# ax[1,1].hist(gal_data_NGC6946_7_10.L_Bol / gal_data_NGC6946_7_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
-# ax[1,1].hist(gal_data_NGC6946_7_20.L_Bol / gal_data_NGC6946_7_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# # ax[1,1].hist(gal_data_NGC6946_7_5.F_Bol / gal_data_NGC6946_7_5.F_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[1,1].hist(gal_data_NGC6946_7_10.F_Bol / gal_data_NGC6946_7_10.F_Edd, bins = bins, alpha = 0.5, label = "10 pc", color='C1')
+# # ax[1,1].hist(gal_data_NGC6946_7_20.F_Bol / gal_data_NGC6946_7_20.F_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# ax[1,1].hist(gal_data_NGC6946_7_40.F_Bol / gal_data_NGC6946_7_40.F_Edd, bins = bins, alpha = 0.5, label = "40 pc", color='C3')
 
 # ax[1,1].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
 
@@ -2028,10 +2326,10 @@ plt.tight_layout()
 # ax[0,1].set_ylim(ymin,ymax)
 # ax[1,0].set_ylim(ymin,ymax)
 # ax[1,1].set_ylim(ymin,ymax)
-# ax[0,0].set_xlim(0.01)
-# ax[0,1].set_xlim(0.01,10)
-# ax[1,0].set_xlim(0.01)
-# ax[1,1].set_xlim(0.01,10)
+# ax[0,0].set_xlim(0.001)
+# ax[0,1].set_xlim(0.001,10)
+# ax[1,0].set_xlim(0.001)
+# ax[1,1].set_xlim(0.001,10)
 
 # ax[1,0].legend()
 
@@ -2049,25 +2347,416 @@ plt.tight_layout()
 
 ##############################################################################
 
+
+### Galaxy Histogram - Spherical
+##############################################################################
+
+# # M51 data
+# gal_data_M51_6_5, continuous_SFR, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 5)
+# gal_data_M51_6_10, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 10)
+# gal_data_M51_6_20, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 20)
+# gal_data_M51_6_40, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 40)
+
+# gal_data_M51_7_5, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 5)
+# gal_data_M51_7_10, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 10)
+# gal_data_M51_7_20, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 20)
+# gal_data_M51_7_40, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 40)
+
+# # NGC6946 data
+# gal_data_NGC6946_6_5, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 5)
+# gal_data_NGC6946_6_10, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 10)
+# gal_data_NGC6946_6_20, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 20)
+# gal_data_NGC6946_6_40, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 40)
+
+# gal_data_NGC6946_7_5, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 5)
+# gal_data_NGC6946_7_10, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 10)
+# gal_data_NGC6946_7_20, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 20)
+# gal_data_NGC6946_7_40, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 40)
+
+# fig, ax = plt.subplots(nrows = 2, ncols = 2, dpi = 200, sharey=True, figsize=(10,7))
+
+# bins = np.logspace(-3,2,200)
+
+# ymin = 1
+# ymax = 100
+
+# ax[0,0].hist(gal_data_M51_6_5.L_Bol / gal_data_M51_6_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[0,0].hist(gal_data_M51_6_10.L_Bol / gal_data_M51_6_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
+# ax[0,0].hist(gal_data_M51_6_20.L_Bol / gal_data_M51_6_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# ax[0,0].hist(gal_data_M51_6_40.L_Bol / gal_data_M51_6_40.L_Edd, bins = bins, alpha = 0.5, label = "40 pc")
+
+# ax[0,0].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
+
+# ax[0,1].hist(gal_data_M51_7_5.L_Bol / gal_data_M51_7_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[0,1].hist(gal_data_M51_7_10.L_Bol / gal_data_M51_7_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
+# ax[0,1].hist(gal_data_M51_7_20.L_Bol / gal_data_M51_7_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# ax[0,1].hist(gal_data_M51_7_40.L_Bol / gal_data_M51_7_40.L_Edd, bins = bins, alpha = 0.5, label = "40 pc")
+
+# ax[0,1].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
+
+# ax[1,0].hist(gal_data_NGC6946_6_5.L_Bol / gal_data_NGC6946_6_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[1,0].hist(gal_data_NGC6946_6_10.L_Bol / gal_data_NGC6946_6_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
+# ax[1,0].hist(gal_data_NGC6946_6_20.L_Bol / gal_data_NGC6946_6_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# ax[1,0].hist(gal_data_NGC6946_6_40.L_Bol / gal_data_NGC6946_6_40.L_Edd, bins = bins, alpha = 0.5, label = "40 pc")
+
+# ax[1,0].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
+
+# ax[1,1].hist(gal_data_NGC6946_7_5.L_Bol / gal_data_NGC6946_7_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[1,1].hist(gal_data_NGC6946_7_10.L_Bol / gal_data_NGC6946_7_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
+# ax[1,1].hist(gal_data_NGC6946_7_20.L_Bol / gal_data_NGC6946_7_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# ax[1,1].hist(gal_data_NGC6946_7_40.L_Bol / gal_data_NGC6946_7_40.L_Edd, bins = bins, alpha = 0.5, label = "40 pc")
+
+# ax[1,1].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
+
+# ax[0,0].set_xscale('log')
+# ax[0,1].set_xscale('log')
+# ax[1,0].set_xscale('log')
+# ax[1,1].set_xscale('log')
+# ax[0,0].set_yscale('log')
+# ax[0,1].set_yscale('log')
+# ax[1,0].set_yscale('log')
+# ax[1,1].set_yscale('log')
+
+# ax[0,0].set_ylim(ymin,ymax)
+# ax[0,1].set_ylim(ymin,ymax)
+# ax[1,0].set_ylim(ymin,ymax)
+# ax[1,1].set_ylim(ymin,ymax)
+# ax[0,0].set_xlim(0.001)
+# ax[0,1].set_xlim(0.001,10)
+# ax[1,0].set_xlim(0.001)
+# ax[1,1].set_xlim(0.001,10)
+
+# ax[1,0].legend()
+
+# ax[1,0].set_xlabel(r'Eddington Ratio')
+# ax[1,1].set_xlabel(r'Eddington Ratio')
+# ax[0,0].set_ylabel(r'Count')
+# ax[1,0].set_ylabel(r'Count')
+
+# ax[0,0].text(0.05, 0.9, r'NGC 5194 (1 Myr)', fontsize=12, transform=ax[0,0].transAxes)
+# ax[0,1].text(0.05, 0.9, r'NGC 5194 (10 Myr)', fontsize=12, transform=ax[0,1].transAxes)
+# ax[1,0].text(0.05, 0.9, r'NGC 6946 (1 Myr)', fontsize=12, transform=ax[1,0].transAxes)
+# ax[1,1].text(0.05, 0.9, r'NGC 6946 (10 Myr)', fontsize=12, transform=ax[1,1].transAxes)
+
+# plt.tight_layout()
+
+##############################################################################
+
+## Get integral quantities, for use with the above histogram block
+##############################################################################
+
+# super_Edd_M51_6_5 = gal_data_M51_6_5.L_Bol > gal_data_M51_6_5.L_Edd
+# super_Edd_M51_6_10 = gal_data_M51_6_10.L_Bol > gal_data_M51_6_10.L_Edd
+# super_Edd_M51_6_20 = gal_data_M51_6_20.L_Bol > gal_data_M51_6_20.L_Edd
+# super_Edd_M51_6_40 = gal_data_M51_6_40.L_Bol > gal_data_M51_6_40.L_Edd
+
+# super_Edd_M51_7_5 = gal_data_M51_7_5.L_Bol > gal_data_M51_7_5.L_Edd
+# super_Edd_M51_7_10 = gal_data_M51_7_10.L_Bol > gal_data_M51_7_10.L_Edd
+# super_Edd_M51_7_20 = gal_data_M51_7_20.L_Bol > gal_data_M51_7_20.L_Edd
+# super_Edd_M51_7_40 = gal_data_M51_7_40.L_Bol > gal_data_M51_7_40.L_Edd
+
+# super_Edd_NGC6946_6_5 = gal_data_NGC6946_6_5.L_Bol > gal_data_NGC6946_6_5.L_Edd
+# super_Edd_NGC6946_6_10 = gal_data_NGC6946_6_10.L_Bol > gal_data_NGC6946_6_10.L_Edd
+# super_Edd_NGC6946_6_20 = gal_data_NGC6946_6_20.L_Bol > gal_data_NGC6946_6_20.L_Edd
+# super_Edd_NGC6946_6_40 = gal_data_NGC6946_6_40.L_Bol > gal_data_NGC6946_6_40.L_Edd
+
+# super_Edd_NGC6946_7_5 = gal_data_NGC6946_7_5.L_Bol > gal_data_NGC6946_7_5.L_Edd
+# super_Edd_NGC6946_7_10 = gal_data_NGC6946_7_10.L_Bol > gal_data_NGC6946_7_10.L_Edd
+# super_Edd_NGC6946_7_20 = gal_data_NGC6946_7_20.L_Bol > gal_data_NGC6946_7_20.L_Edd
+# super_Edd_NGC6946_7_40 = gal_data_NGC6946_7_40.L_Bol > gal_data_NGC6946_7_40.L_Edd
+
+# M51_6_5_LBol_frac = gal_data_M51_6_5[super_Edd_M51_6_5].L_Bol.sum()/gal_data_M51_6_5.L_Bol.sum()
+# M51_6_10_LBol_frac = gal_data_M51_6_10[super_Edd_M51_6_10].L_Bol.sum()/gal_data_M51_6_10.L_Bol.sum()
+# M51_6_20_LBol_frac = gal_data_M51_6_20[super_Edd_M51_6_20].L_Bol.sum()/gal_data_M51_6_20.L_Bol.sum()
+# M51_6_40_LBol_frac = gal_data_M51_6_40[super_Edd_M51_6_40].L_Bol.sum()/gal_data_M51_6_40.L_Bol.sum()
+
+# M51_7_5_LBol_frac = gal_data_M51_7_5[super_Edd_M51_7_5].L_Bol.sum()/gal_data_M51_7_5.L_Bol.sum()
+# M51_7_10_LBol_frac = gal_data_M51_7_10[super_Edd_M51_7_10].L_Bol.sum()/gal_data_M51_7_10.L_Bol.sum()
+# M51_7_20_LBol_frac = gal_data_M51_7_20[super_Edd_M51_7_20].L_Bol.sum()/gal_data_M51_7_20.L_Bol.sum()
+# M51_7_40_LBol_frac = gal_data_M51_7_40[super_Edd_M51_7_40].L_Bol.sum()/gal_data_M51_7_40.L_Bol.sum()
+
+# NGC6946_6_5_LBol_frac = gal_data_NGC6946_6_5[super_Edd_NGC6946_6_5].L_Bol.sum()/gal_data_NGC6946_6_5.L_Bol.sum()
+# NGC6946_6_10_LBol_frac = gal_data_NGC6946_6_10[super_Edd_NGC6946_6_10].L_Bol.sum()/gal_data_NGC6946_6_10.L_Bol.sum()
+# NGC6946_6_20_LBol_frac = gal_data_NGC6946_6_20[super_Edd_NGC6946_6_20].L_Bol.sum()/gal_data_NGC6946_6_20.L_Bol.sum()
+# NGC6946_6_40_LBol_frac = gal_data_NGC6946_6_40[super_Edd_NGC6946_6_40].L_Bol.sum()/gal_data_NGC6946_6_40.L_Bol.sum()
+
+# NGC6946_7_5_LBol_frac = gal_data_NGC6946_7_5[super_Edd_NGC6946_7_5].L_Bol.sum()/gal_data_NGC6946_7_5.L_Bol.sum()
+# NGC6946_7_10_LBol_frac = gal_data_NGC6946_7_10[super_Edd_NGC6946_7_10].L_Bol.sum()/gal_data_NGC6946_7_10.L_Bol.sum()
+# NGC6946_7_20_LBol_frac = gal_data_NGC6946_7_20[super_Edd_NGC6946_7_20].L_Bol.sum()/gal_data_NGC6946_7_20.L_Bol.sum()
+# NGC6946_7_40_LBol_frac = gal_data_NGC6946_7_40[super_Edd_NGC6946_7_40].L_Bol.sum()/gal_data_NGC6946_7_40.L_Bol.sum()
+
+# M51_6_5_Mass_g_frac = gal_data_M51_6_5[super_Edd_M51_6_5].Mass_g.sum()/gal_data_M51_6_5.Mass_g.sum()
+# M51_6_10_Mass_g_frac = gal_data_M51_6_10[super_Edd_M51_6_10].Mass_g.sum()/gal_data_M51_6_10.Mass_g.sum()
+# M51_6_20_Mass_g_frac = gal_data_M51_6_20[super_Edd_M51_6_20].Mass_g.sum()/gal_data_M51_6_20.Mass_g.sum()
+# M51_6_40_Mass_g_frac = gal_data_M51_6_40[super_Edd_M51_6_40].Mass_g.sum()/gal_data_M51_6_40.Mass_g.sum()
+
+# M51_7_5_Mass_g_frac = gal_data_M51_7_5[super_Edd_M51_7_5].Mass_g.sum()/gal_data_M51_7_5.Mass_g.sum()
+# M51_7_10_Mass_g_frac = gal_data_M51_7_10[super_Edd_M51_7_10].Mass_g.sum()/gal_data_M51_7_10.Mass_g.sum()
+# M51_7_20_Mass_g_frac = gal_data_M51_7_20[super_Edd_M51_7_20].Mass_g.sum()/gal_data_M51_7_20.Mass_g.sum()
+# M51_7_40_Mass_g_frac = gal_data_M51_7_40[super_Edd_M51_7_40].Mass_g.sum()/gal_data_M51_7_40.Mass_g.sum()
+
+# NGC6946_6_5_Mass_g_frac = gal_data_NGC6946_6_5[super_Edd_NGC6946_6_5].Mass_g.sum()/gal_data_NGC6946_6_5.Mass_g.sum()
+# NGC6946_6_10_Mass_g_frac = gal_data_NGC6946_6_10[super_Edd_NGC6946_6_10].Mass_g.sum()/gal_data_NGC6946_6_10.Mass_g.sum()
+# NGC6946_6_20_Mass_g_frac = gal_data_NGC6946_6_20[super_Edd_NGC6946_6_20].Mass_g.sum()/gal_data_NGC6946_6_20.Mass_g.sum()
+# NGC6946_6_40_Mass_g_frac = gal_data_NGC6946_6_40[super_Edd_NGC6946_6_40].Mass_g.sum()/gal_data_NGC6946_6_40.Mass_g.sum()
+
+# NGC6946_7_5_Mass_g_frac = gal_data_NGC6946_7_5[super_Edd_NGC6946_7_5].Mass_g.sum()/gal_data_NGC6946_7_5.Mass_g.sum()
+# NGC6946_7_10_Mass_g_frac = gal_data_NGC6946_7_10[super_Edd_NGC6946_7_10].Mass_g.sum()/gal_data_NGC6946_7_10.Mass_g.sum()
+# NGC6946_7_20_Mass_g_frac = gal_data_NGC6946_7_20[super_Edd_NGC6946_7_20].Mass_g.sum()/gal_data_NGC6946_7_20.Mass_g.sum()
+# NGC6946_7_40_Mass_g_frac = gal_data_NGC6946_7_40[super_Edd_NGC6946_7_40].Mass_g.sum()/gal_data_NGC6946_7_40.Mass_g.sum()
+
+# print("M51 1 Myr 5 PC")
+# print(f"LBol frac: {M51_6_5_LBol_frac:.8f}")
+# print(f"Mgas frac: {M51_6_5_Mass_g_frac:.8f}")
+# print("----------")
+# print("M51 1 Myr 10 PC")
+# print(f"LBol frac: {M51_6_10_LBol_frac:.8f}")
+# print(f"Mgas frac: {M51_6_10_Mass_g_frac:.8f}")
+# print("----------")
+# print("M51 1 Myr 20 PC")
+# print(f"LBol frac: {M51_6_20_LBol_frac:.8f}")
+# print(f"Mgas frac: {M51_6_20_Mass_g_frac:.8f}")
+# print("----------")
+# print("M51 1 Myr 40 PC")
+# print(f"LBol frac: {M51_6_40_LBol_frac:.8f}")
+# print(f"Mgas frac: {M51_6_40_Mass_g_frac:.8f}")
+
+# print("------------------------------")
+
+# print("M51 10 Myr 5 PC")
+# print(f"LBol frac: {M51_7_5_LBol_frac:.8f}")
+# print(f"Mgas frac: {M51_7_5_Mass_g_frac:.8f}")
+# print("----------")
+# print("M51 10 Myr 10 PC")
+# print(f"LBol frac: {M51_7_10_LBol_frac:.8f}")
+# print(f"Mgas frac: {M51_7_10_Mass_g_frac:.8f}")
+# print("----------")
+# print("M51 10 Myr 20 PC")
+# print(f"LBol frac: {M51_7_20_LBol_frac:.8f}")
+# print(f"Mgas frac: {M51_7_20_Mass_g_frac:.8f}")
+# print("----------")
+# print("M51 10 Myr 40 PC")
+# print(f"LBol frac: {M51_7_40_LBol_frac:.8f}")
+# print(f"Mgas frac: {M51_7_40_Mass_g_frac:.8f}")
+
+# print("------------------------------")
+
+# print("NGC6946 1 Myr 5 PC")
+# print(f"LBol frac: {NGC6946_6_5_LBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_6_5_Mass_g_frac:.8f}")
+# print("----------")
+# print("NGC6946 1 Myr 10 PC")
+# print(f"LBol frac: {NGC6946_6_10_LBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_6_10_Mass_g_frac:.8f}")
+# print("----------")
+# print("NGC6946 1 Myr 20 PC")
+# print(f"LBol frac: {NGC6946_6_20_LBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_6_20_Mass_g_frac:.8f}")
+# print("----------")
+# print("NGC6946 1 Myr 40 PC")
+# print(f"LBol frac: {NGC6946_6_40_LBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_6_40_Mass_g_frac:.8f}")
+
+# print("------------------------------")
+
+# print("NGC6946 10 Myr 5 PC")
+# print(f"LBol frac: {NGC6946_7_5_LBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_7_5_Mass_g_frac:.8f}")
+# print("----------")
+# print("NGC6946 10 Myr 10 PC")
+# print(f"LBol frac: {NGC6946_7_10_LBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_7_10_Mass_g_frac:.8f}")
+# print("----------")
+# print("NGC6946 10 Myr 20 PC")
+# print(f"LBol frac: {NGC6946_7_20_LBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_7_20_Mass_g_frac:.8f}")
+# print("----------")
+# print("NGC6946 10 Myr 40 PC")
+# print(f"LBol frac: {NGC6946_7_40_LBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_7_40_Mass_g_frac:.8f}")
+
+##############################################################################
+
+
+## Integral Quantities planar
+##############################################################################
+
+# super_Edd_M51_6_5 = gal_data_M51_6_5.F_Bol > gal_data_M51_6_5.F_Edd
+# super_Edd_M51_6_10 = gal_data_M51_6_10.F_Bol > gal_data_M51_6_10.F_Edd
+# super_Edd_M51_6_20 = gal_data_M51_6_20.F_Bol > gal_data_M51_6_20.F_Edd
+# super_Edd_M51_6_40 = gal_data_M51_6_40.F_Bol > gal_data_M51_6_40.F_Edd
+
+# super_Edd_M51_7_5 = gal_data_M51_7_5.F_Bol > gal_data_M51_7_5.F_Edd
+# super_Edd_M51_7_10 = gal_data_M51_7_10.F_Bol > gal_data_M51_7_10.F_Edd
+# super_Edd_M51_7_20 = gal_data_M51_7_20.F_Bol > gal_data_M51_7_20.F_Edd
+# super_Edd_M51_7_40 = gal_data_M51_7_40.F_Bol > gal_data_M51_7_40.F_Edd
+
+# super_Edd_NGC6946_6_5 = gal_data_NGC6946_6_5.F_Bol > gal_data_NGC6946_6_5.F_Edd
+# super_Edd_NGC6946_6_10 = gal_data_NGC6946_6_10.F_Bol > gal_data_NGC6946_6_10.F_Edd
+# super_Edd_NGC6946_6_20 = gal_data_NGC6946_6_20.F_Bol > gal_data_NGC6946_6_20.F_Edd
+# super_Edd_NGC6946_6_40 = gal_data_NGC6946_6_40.F_Bol > gal_data_NGC6946_6_40.F_Edd
+
+# super_Edd_NGC6946_7_5 = gal_data_NGC6946_7_5.F_Bol > gal_data_NGC6946_7_5.F_Edd
+# super_Edd_NGC6946_7_10 = gal_data_NGC6946_7_10.F_Bol > gal_data_NGC6946_7_10.F_Edd
+# super_Edd_NGC6946_7_20 = gal_data_NGC6946_7_20.F_Bol > gal_data_NGC6946_7_20.F_Edd
+# super_Edd_NGC6946_7_40 = gal_data_NGC6946_7_40.F_Bol > gal_data_NGC6946_7_40.F_Edd
+
+# M51_6_5_FBol_frac = gal_data_M51_6_5[super_Edd_M51_6_5].F_Bol.sum()/gal_data_M51_6_5.F_Bol.sum()
+# M51_6_10_FBol_frac = gal_data_M51_6_10[super_Edd_M51_6_10].F_Bol.sum()/gal_data_M51_6_10.F_Bol.sum()
+# M51_6_20_FBol_frac = gal_data_M51_6_20[super_Edd_M51_6_20].F_Bol.sum()/gal_data_M51_6_20.F_Bol.sum()
+# M51_6_40_FBol_frac = gal_data_M51_6_40[super_Edd_M51_6_40].F_Bol.sum()/gal_data_M51_6_40.F_Bol.sum()
+
+# M51_7_5_FBol_frac = gal_data_M51_7_5[super_Edd_M51_7_5].F_Bol.sum()/gal_data_M51_7_5.F_Bol.sum()
+# M51_7_10_FBol_frac = gal_data_M51_7_10[super_Edd_M51_7_10].F_Bol.sum()/gal_data_M51_7_10.F_Bol.sum()
+# M51_7_20_FBol_frac = gal_data_M51_7_20[super_Edd_M51_7_20].F_Bol.sum()/gal_data_M51_7_20.F_Bol.sum()
+# M51_7_40_FBol_frac = gal_data_M51_7_40[super_Edd_M51_7_40].F_Bol.sum()/gal_data_M51_7_40.F_Bol.sum()
+
+# NGC6946_6_5_FBol_frac = gal_data_NGC6946_6_5[super_Edd_NGC6946_6_5].F_Bol.sum()/gal_data_NGC6946_6_5.F_Bol.sum()
+# NGC6946_6_10_FBol_frac = gal_data_NGC6946_6_10[super_Edd_NGC6946_6_10].F_Bol.sum()/gal_data_NGC6946_6_10.F_Bol.sum()
+# NGC6946_6_20_FBol_frac = gal_data_NGC6946_6_20[super_Edd_NGC6946_6_20].F_Bol.sum()/gal_data_NGC6946_6_20.F_Bol.sum()
+# NGC6946_6_40_FBol_frac = gal_data_NGC6946_6_40[super_Edd_NGC6946_6_40].F_Bol.sum()/gal_data_NGC6946_6_40.F_Bol.sum()
+
+# NGC6946_7_5_FBol_frac = gal_data_NGC6946_7_5[super_Edd_NGC6946_7_5].F_Bol.sum()/gal_data_NGC6946_7_5.F_Bol.sum()
+# NGC6946_7_10_FBol_frac = gal_data_NGC6946_7_10[super_Edd_NGC6946_7_10].F_Bol.sum()/gal_data_NGC6946_7_10.F_Bol.sum()
+# NGC6946_7_20_FBol_frac = gal_data_NGC6946_7_20[super_Edd_NGC6946_7_20].F_Bol.sum()/gal_data_NGC6946_7_20.F_Bol.sum()
+# NGC6946_7_40_FBol_frac = gal_data_NGC6946_7_40[super_Edd_NGC6946_7_40].F_Bol.sum()/gal_data_NGC6946_7_40.F_Bol.sum()
+
+# M51_6_5_Mass_g_frac = gal_data_M51_6_5[super_Edd_M51_6_5].Mass_g.sum()/gal_data_M51_6_5.Mass_g.sum()
+# M51_6_10_Mass_g_frac = gal_data_M51_6_10[super_Edd_M51_6_10].Mass_g.sum()/gal_data_M51_6_10.Mass_g.sum()
+# M51_6_20_Mass_g_frac = gal_data_M51_6_20[super_Edd_M51_6_20].Mass_g.sum()/gal_data_M51_6_20.Mass_g.sum()
+# M51_6_40_Mass_g_frac = gal_data_M51_6_40[super_Edd_M51_6_40].Mass_g.sum()/gal_data_M51_6_40.Mass_g.sum()
+
+# M51_7_5_Mass_g_frac = gal_data_M51_7_5[super_Edd_M51_7_5].Mass_g.sum()/gal_data_M51_7_5.Mass_g.sum()
+# M51_7_10_Mass_g_frac = gal_data_M51_7_10[super_Edd_M51_7_10].Mass_g.sum()/gal_data_M51_7_10.Mass_g.sum()
+# M51_7_20_Mass_g_frac = gal_data_M51_7_20[super_Edd_M51_7_20].Mass_g.sum()/gal_data_M51_7_20.Mass_g.sum()
+# M51_7_40_Mass_g_frac = gal_data_M51_7_40[super_Edd_M51_7_40].Mass_g.sum()/gal_data_M51_7_40.Mass_g.sum()
+
+# NGC6946_6_5_Mass_g_frac = gal_data_NGC6946_6_5[super_Edd_NGC6946_6_5].Mass_g.sum()/gal_data_NGC6946_6_5.Mass_g.sum()
+# NGC6946_6_10_Mass_g_frac = gal_data_NGC6946_6_10[super_Edd_NGC6946_6_10].Mass_g.sum()/gal_data_NGC6946_6_10.Mass_g.sum()
+# NGC6946_6_20_Mass_g_frac = gal_data_NGC6946_6_20[super_Edd_NGC6946_6_20].Mass_g.sum()/gal_data_NGC6946_6_20.Mass_g.sum()
+# NGC6946_6_40_Mass_g_frac = gal_data_NGC6946_6_40[super_Edd_NGC6946_6_40].Mass_g.sum()/gal_data_NGC6946_6_40.Mass_g.sum()
+
+# NGC6946_7_5_Mass_g_frac = gal_data_NGC6946_7_5[super_Edd_NGC6946_7_5].Mass_g.sum()/gal_data_NGC6946_7_5.Mass_g.sum()
+# NGC6946_7_10_Mass_g_frac = gal_data_NGC6946_7_10[super_Edd_NGC6946_7_10].Mass_g.sum()/gal_data_NGC6946_7_10.Mass_g.sum()
+# NGC6946_7_20_Mass_g_frac = gal_data_NGC6946_7_20[super_Edd_NGC6946_7_20].Mass_g.sum()/gal_data_NGC6946_7_20.Mass_g.sum()
+# NGC6946_7_40_Mass_g_frac = gal_data_NGC6946_7_40[super_Edd_NGC6946_7_40].Mass_g.sum()/gal_data_NGC6946_7_40.Mass_g.sum()
+
+# print("M51 1 Myr 5 PC")
+# print(f"FBol frac: {M51_6_5_FBol_frac:.8f}")
+# print(f"Mgas frac: {M51_6_5_Mass_g_frac:.8f}")
+# print("----------")
+# print("M51 1 Myr 10 PC")
+# print(f"FBol frac: {M51_6_10_FBol_frac:.8f}")
+# print(f"Mgas frac: {M51_6_10_Mass_g_frac:.8f}")
+# print("----------")
+# print("M51 1 Myr 20 PC")
+# print(f"FBol frac: {M51_6_20_FBol_frac:.8f}")
+# print(f"Mgas frac: {M51_6_20_Mass_g_frac:.8f}")
+# print("----------")
+# print("M51 1 Myr 40 PC")
+# print(f"FBol frac: {M51_6_40_FBol_frac:.8f}")
+# print(f"Mgas frac: {M51_6_40_Mass_g_frac:.8f}")
+
+# print("------------------------------")
+
+# print("M51 10 Myr 5 PC")
+# print(f"FBol frac: {M51_7_5_FBol_frac:.8f}")
+# print(f"Mgas frac: {M51_7_5_Mass_g_frac:.8f}")
+# print("----------")
+# print("M51 10 Myr 10 PC")
+# print(f"FBol frac: {M51_7_10_FBol_frac:.8f}")
+# print(f"Mgas frac: {M51_7_10_Mass_g_frac:.8f}")
+# print("----------")
+# print("M51 10 Myr 20 PC")
+# print(f"FBol frac: {M51_7_20_FBol_frac:.8f}")
+# print(f"Mgas frac: {M51_7_20_Mass_g_frac:.8f}")
+# print("----------")
+# print("M51 10 Myr 40 PC")
+# print(f"FBol frac: {M51_7_40_FBol_frac:.8f}")
+# print(f"Mgas frac: {M51_7_40_Mass_g_frac:.8f}")
+
+# print("------------------------------")
+
+# print("NGC6946 1 Myr 5 PC")
+# print(f"FBol frac: {NGC6946_6_5_FBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_6_5_Mass_g_frac:.8f}")
+# print("----------")
+# print("NGC6946 1 Myr 10 PC")
+# print(f"FBol frac: {NGC6946_6_10_FBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_6_10_Mass_g_frac:.8f}")
+# print("----------")
+# print("NGC6946 1 Myr 20 PC")
+# print(f"FBol frac: {NGC6946_6_20_FBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_6_20_Mass_g_frac:.8f}")
+# print("----------")
+# print("NGC6946 1 Myr 40 PC")
+# print(f"FBol frac: {NGC6946_6_40_FBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_6_40_Mass_g_frac:.8f}")
+
+# print("------------------------------")
+
+# print("NGC6946 10 Myr 5 PC")
+# print(f"FBol frac: {NGC6946_7_5_FBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_7_5_Mass_g_frac:.8f}")
+# print("----------")
+# print("NGC6946 10 Myr 10 PC")
+# print(f"FBol frac: {NGC6946_7_10_FBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_7_10_Mass_g_frac:.8f}")
+# print("----------")
+# print("NGC6946 10 Myr 20 PC")
+# print(f"FBol frac: {NGC6946_7_20_FBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_7_20_Mass_g_frac:.8f}")
+# print("----------")
+# print("NGC6946 10 Myr 40 PC")
+# print(f"FBol frac: {NGC6946_7_40_FBol_frac:.8f}")
+# print(f"Mgas frac: {NGC6946_7_40_Mass_g_frac:.8f}")
+
+##############################################################################
+
+### Spectra plot
+##############################################################################
+
+plt.figure(dpi = 200)
+plt.plot(BPASS_data.WL*10**-4, BPASS_data["6.0"], label = "1 Myr")
+plt.plot(BPASS_data.WL*10**-4, BPASS_data["7.0"], label = "10 Myr")
+plt.plot([wl_ref,wl_ref], [0,10**9])
+
+plt.xscale('log')
+plt.yscale('log')
+
+plt.ylim(1,10**8)
+plt.xlim(10**-2)
+
+plt.xlabel("Wavelength")
+plt.ylabel("Fuck all if I remember")
+
+
+
+##############################################################################
+
+
+
+
+
 ### Galaxy data by Edd ratio
 ##############################################################################
 
 # # M51 data
-# gal_data_M51_6_5, continuous_SFR, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 5)
-# gal_data_M51_6_10, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 10)
+# gal_data_M51_6_5, continuous_SFR, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 5)
+# gal_data_M51_6_10, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 10)
 # # gal_data_M51_6_20, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 20)
 
-# gal_data_M51_7_5, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 5)
-# gal_data_M51_7_10, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 10)
+# gal_data_M51_7_5, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 5)
+# gal_data_M51_7_10, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 10)
 # # gal_data_M51_7_20, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 20)
 
 # # NGC6946 data
-# gal_data_NGC6946_6_5, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 5)
-# gal_data_NGC6946_6_10, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 10)
+# gal_data_NGC6946_6_5, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 5)
+# gal_data_NGC6946_6_10, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 10)
 # # gal_data_NGC6946_6_20, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 20)
 
-# gal_data_NGC6946_7_5, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 5)
-# gal_data_NGC6946_7_10, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 10)
+# gal_data_NGC6946_7_5, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 5)
+# gal_data_NGC6946_7_10, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 10)
 # # gal_data_NGC6946_7_20, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 20)
 
 # # Build the plot
@@ -2076,43 +2765,43 @@ plt.tight_layout()
 # ymin = 0.01
 # ymax = 100
 
-# ax[0,0].scatter(gal_data_M51_6_5.AHa, gal_data_M51_6_5.L_Bol / gal_data_M51_6_5.L_Edd, alpha = 0.5, label = "5 pc, 1 Myr")
-# ax[0,0].scatter(gal_data_M51_6_10.AHa, gal_data_M51_6_10.L_Bol / gal_data_M51_6_10.L_Edd, alpha = 0.5, label = "10 pc, 1 Myr")
-# # ax[0,0].scatter(gal_data_M51_6_20.AHa, gal_data_M51_6_20.L_Bol / gal_data_M51_6_20.L_Edd, alpha = 0.5, label = "20 pc")
+# ax[0,0].scatter(gal_data_M51_6_5.AHa, gal_data_M51_6_5.L_Bol / gal_data_M51_6_5.L_Edd, alpha = 0.2, marker = ".", label = "5 pc, 1 Myr")
+# ax[0,0].scatter(gal_data_M51_6_10.AHa, gal_data_M51_6_10.L_Bol / gal_data_M51_6_10.L_Edd, alpha = 0.2, marker = ".", label = "10 pc, 1 Myr")
+# # ax[0,0].scatter(gal_data_M51_6_20.AHa, gal_data_M51_6_20.L_Bol / gal_data_M51_6_20.L_Edd, alpha = 0.2, marker = ".", label = "20 pc")
 
-# ax[0,0].scatter(gal_data_M51_7_5.AHa, gal_data_M51_7_5.L_Bol / gal_data_M51_7_5.L_Edd, alpha = 0.5, label = "5 pc, 10 Myr")
-# ax[0,0].scatter(gal_data_M51_7_10.AHa, gal_data_M51_7_10.L_Bol / gal_data_M51_7_10.L_Edd, alpha = 0.5, label = "10 pc, 10 Myr")
-# # ax[0,0].scatter(gal_data_M51_7_20.AHa, gal_data_M51_7_20.L_Bol / gal_data_M51_7_20.L_Edd, alpha = 0.5, label = "20 pc, 10 Myr")
+# ax[0,0].scatter(gal_data_M51_7_5.AHa, gal_data_M51_7_5.L_Bol / gal_data_M51_7_5.L_Edd, alpha = 0.2, marker = ".", label = "5 pc, 10 Myr")
+# ax[0,0].scatter(gal_data_M51_7_10.AHa, gal_data_M51_7_10.L_Bol / gal_data_M51_7_10.L_Edd, alpha = 0.2, marker = ".", label = "10 pc, 10 Myr")
+# # ax[0,0].scatter(gal_data_M51_7_20.AHa, gal_data_M51_7_20.L_Bol / gal_data_M51_7_20.L_Edd, alpha = 0.2, marker = ".", label = "20 pc, 10 Myr")
 
 # ax[0,0].plot([0.00001, 10**6], [1, 1], 'k', alpha = 0.5)
 
-# ax[0,1].scatter(gal_data_M51_6_5.Mass_tot/g_Msun, gal_data_M51_6_5.L_Bol / gal_data_M51_6_5.L_Edd, alpha = 0.5, label = "5 pc, 1 Myr")
-# ax[0,1].scatter(gal_data_M51_6_10.Mass_tot/g_Msun, gal_data_M51_6_10.L_Bol / gal_data_M51_6_10.L_Edd, alpha = 0.5, label = "10 pc, 1 Myr")
-# # ax[0,1].scatter(gal_data_M51_6_20.Mass_tot/g_Msun, gal_data_M51_6_20.L_Bol / gal_data_M51_6_20.L_Edd, alpha = 0.5, label = "20 pc")
+# ax[0,1].scatter(gal_data_M51_6_5.Mass_tot/g_Msun, gal_data_M51_6_5.L_Bol / gal_data_M51_6_5.L_Edd, alpha = 0.2, marker = ".", label = "5 pc, 1 Myr")
+# ax[0,1].scatter(gal_data_M51_6_10.Mass_tot/g_Msun, gal_data_M51_6_10.L_Bol / gal_data_M51_6_10.L_Edd, alpha = 0.2, marker = ".", label = "10 pc, 1 Myr")
+# # ax[0,1].scatter(gal_data_M51_6_20.Mass_tot/g_Msun, gal_data_M51_6_20.L_Bol / gal_data_M51_6_20.L_Edd, alpha = 0.2, marker = ".", label = "20 pc")
 
-# ax[0,1].scatter(gal_data_M51_7_5.Mass_tot/g_Msun, gal_data_M51_7_5.L_Bol / gal_data_M51_7_5.L_Edd, alpha = 0.5, label = "5 pc, 10 Myr")
-# ax[0,1].scatter(gal_data_M51_7_10.Mass_tot/g_Msun, gal_data_M51_7_10.L_Bol / gal_data_M51_7_10.L_Edd, alpha = 0.5, label = "10 pc, 10 Myr")
-# # ax[0,1].scatter(gal_data_M51_7_20.Mass_tot/g_Msun, gal_data_M51_7_20.L_Bol / gal_data_M51_7_20.L_Edd, alpha = 0.5, label = "20 pc, 10 Myr")
+# ax[0,1].scatter(gal_data_M51_7_5.Mass_tot/g_Msun, gal_data_M51_7_5.L_Bol / gal_data_M51_7_5.L_Edd, alpha = 0.2, marker = ".", label = "5 pc, 10 Myr")
+# ax[0,1].scatter(gal_data_M51_7_10.Mass_tot/g_Msun, gal_data_M51_7_10.L_Bol / gal_data_M51_7_10.L_Edd, alpha = 0.2, marker = ".", label = "10 pc, 10 Myr")
+# # ax[0,1].scatter(gal_data_M51_7_20.Mass_tot/g_Msun, gal_data_M51_7_20.L_Bol / gal_data_M51_7_20.L_Edd, alpha = 0.2, marker = ".", label = "20 pc, 10 Myr")
 
 # ax[0,1].plot([0.00001, 10**6], [1, 1], 'k', alpha = 0.5)
 
-# ax[1,0].scatter(gal_data_NGC6946_6_5.AHa, gal_data_NGC6946_6_5.L_Bol / gal_data_NGC6946_6_5.L_Edd, alpha = 0.5, label = "5 pc, 1 Myr")
-# ax[1,0].scatter(gal_data_NGC6946_6_10.AHa, gal_data_NGC6946_6_10.L_Bol / gal_data_NGC6946_6_10.L_Edd, alpha = 0.5, label = "10 pc, 1 Myr")
-# # ax[1,0].scatter(gal_data_NGC6946_6_20.AHa, gal_data_NGC6946_6_20.L_Bol / gal_data_NGC6946_6_20.L_Edd, alpha = 0.5, label = "20 pc")
+# ax[1,0].scatter(gal_data_NGC6946_6_5.AHa, gal_data_NGC6946_6_5.L_Bol / gal_data_NGC6946_6_5.L_Edd, alpha = 0.2, marker = ".", label = "5 pc, 1 Myr")
+# ax[1,0].scatter(gal_data_NGC6946_6_10.AHa, gal_data_NGC6946_6_10.L_Bol / gal_data_NGC6946_6_10.L_Edd, alpha = 0.2, marker = ".", label = "10 pc, 1 Myr")
+# # ax[1,0].scatter(gal_data_NGC6946_6_20.AHa, gal_data_NGC6946_6_20.L_Bol / gal_data_NGC6946_6_20.L_Edd, alpha = 0.2, marker = ".", label = "20 pc")
 
-# ax[1,0].scatter(gal_data_NGC6946_7_5.AHa, gal_data_NGC6946_7_5.L_Bol / gal_data_NGC6946_7_5.L_Edd, alpha = 0.5, label = "5 pc, 10 Myr")
-# ax[1,0].scatter(gal_data_NGC6946_7_10.AHa, gal_data_NGC6946_7_10.L_Bol / gal_data_NGC6946_7_10.L_Edd, alpha = 0.5, label = "10 pc, 10 Myr")
-# # ax[1,0].scatter(gal_data_NGC6946_7_20.AHa, gal_data_NGC6946_7_20.L_Bol / gal_data_NGC6946_7_20.L_Edd, alpha = 0.5, label = "20 pc, 10 Myr")
+# ax[1,0].scatter(gal_data_NGC6946_7_5.AHa, gal_data_NGC6946_7_5.L_Bol / gal_data_NGC6946_7_5.L_Edd, alpha = 0.2, marker = ".", label = "5 pc, 10 Myr")
+# ax[1,0].scatter(gal_data_NGC6946_7_10.AHa, gal_data_NGC6946_7_10.L_Bol / gal_data_NGC6946_7_10.L_Edd, alpha = 0.2, marker = ".", label = "10 pc, 10 Myr")
+# # ax[1,0].scatter(gal_data_NGC6946_7_20.AHa, gal_data_NGC6946_7_20.L_Bol / gal_data_NGC6946_7_20.L_Edd, alpha = 0.2, marker = ".", label = "20 pc, 10 Myr")
 
 # ax[1,0].plot([0.00001, 10**6], [1, 1], 'k', alpha = 0.5)
 
-# ax[1,1].scatter(gal_data_NGC6946_6_5.Mass_tot/g_Msun, gal_data_NGC6946_6_5.L_Bol / gal_data_NGC6946_6_5.L_Edd, alpha = 0.5, label = "5 pc, 1 Myr")
-# ax[1,1].scatter(gal_data_NGC6946_6_10.Mass_tot/g_Msun, gal_data_NGC6946_6_10.L_Bol / gal_data_NGC6946_6_10.L_Edd, alpha = 0.5, label = "10 pc, 1 Myr")
-# # ax[1,1].scatter(gal_data_NGC6946_6_20.Mass_tot/g_Msun, gal_data_NGC6946_6_20.L_Bol / gal_data_NGC6946_6_20.L_Edd, alpha = 0.5, label = "20 pc")
+# ax[1,1].scatter(gal_data_NGC6946_6_5.Mass_tot/g_Msun, gal_data_NGC6946_6_5.L_Bol / gal_data_NGC6946_6_5.L_Edd, alpha = 0.2, marker = ".", label = "5 pc, 1 Myr")
+# ax[1,1].scatter(gal_data_NGC6946_6_10.Mass_tot/g_Msun, gal_data_NGC6946_6_10.L_Bol / gal_data_NGC6946_6_10.L_Edd, alpha = 0.2, marker = ".", label = "10 pc, 1 Myr")
+# # ax[1,1].scatter(gal_data_NGC6946_6_20.Mass_tot/g_Msun, gal_data_NGC6946_6_20.L_Bol / gal_data_NGC6946_6_20.L_Edd, alpha = 0.2, marker = ".", label = "20 pc")
 
-# ax[1,1].scatter(gal_data_NGC6946_7_5.Mass_tot/g_Msun, gal_data_NGC6946_7_5.L_Bol / gal_data_NGC6946_7_5.L_Edd, alpha = 0.5, label = "5 pc, 10 Myr")
-# ax[1,1].scatter(gal_data_NGC6946_7_10.Mass_tot/g_Msun, gal_data_NGC6946_7_10.L_Bol / gal_data_NGC6946_7_10.L_Edd, alpha = 0.5, label = "10 pc, 10 Myr")
-# # ax[1,1].scatter(gal_data_NGC6946_7_20.Mass_tot/g_Msun, gal_data_NGC6946_7_20.L_Bol / gal_data_NGC6946_7_20.L_Edd, alpha = 0.5, label = "20 pc, 10 Myr")
+# ax[1,1].scatter(gal_data_NGC6946_7_5.Mass_tot/g_Msun, gal_data_NGC6946_7_5.L_Bol / gal_data_NGC6946_7_5.L_Edd, alpha = 0.2, marker = ".", label = "5 pc, 10 Myr")
+# ax[1,1].scatter(gal_data_NGC6946_7_10.Mass_tot/g_Msun, gal_data_NGC6946_7_10.L_Bol / gal_data_NGC6946_7_10.L_Edd, alpha = 0.2, marker = ".", label = "10 pc, 10 Myr")
+# # ax[1,1].scatter(gal_data_NGC6946_7_20.Mass_tot/g_Msun, gal_data_NGC6946_7_20.L_Bol / gal_data_NGC6946_7_20.L_Edd, alpha = 0.2, marker = ".", label = "20 pc, 10 Myr")
 
 # ax[1,1].plot([0.00001, 10**6], [1, 1], 'k', alpha = 0.5)
 
