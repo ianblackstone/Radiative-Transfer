@@ -2256,101 +2256,6 @@ gal_data, continuous_SFR, BPASS_data, Grain_data, kappa_data, L_Edd_DF, yield_da
 ### Galaxy Histograms - Planar
 ##############################################################################
 
-# # M51 data
-# gal_data_M51_6_5, continuous_SFR, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 5)
-# gal_data_M51_6_10, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 10)
-# gal_data_M51_6_20, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 20)
-# gal_data_M51_6_40, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 40)
-
-# gal_data_M51_7_5, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 5)
-# gal_data_M51_7_10, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 10)
-# gal_data_M51_7_20, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 20)
-# gal_data_M51_7_40, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 40)
-
-# # NGC6946 data
-# gal_data_NGC6946_6_5, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 5)
-# gal_data_NGC6946_6_10, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 10)
-# gal_data_NGC6946_6_20, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 20)
-# gal_data_NGC6946_6_40, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 40)
-
-# gal_data_NGC6946_7_5, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 5)
-# gal_data_NGC6946_7_10, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 10)
-# gal_data_NGC6946_7_20, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 20)
-# gal_data_NGC6946_7_40, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 40)
-
-# fig, ax = plt.subplots(nrows = 2, ncols = 2, dpi = 200, sharey=True, figsize=(10,7))
-
-# bins = np.logspace(-3,2,200)
-
-# ymin = 1
-# ymax = 100
-
-# # ax[0,0].hist(gal_data_M51_6_5.F_Bol / gal_data_M51_6_5.F_Edd, bins = bins, alpha = 0.5, label = "5 pc")
-# ax[0,0].hist(gal_data_M51_6_10.F_Bol / gal_data_M51_6_10.F_Edd, bins = bins, alpha = 0.5, label = "10 pc", color='C1')
-# # ax[0,0].hist(gal_data_M51_6_20.F_Bol / gal_data_M51_6_20.F_Edd, bins = bins, alpha = 0.5, label = "20 pc")
-# ax[0,0].hist(gal_data_M51_6_40.F_Bol / gal_data_M51_6_40.F_Edd, bins = bins, alpha = 0.5, label = "40 pc", color='C3')
-
-# ax[0,0].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
-
-# # ax[0,1].hist(gal_data_M51_7_5.F_Bol / gal_data_M51_7_5.F_Edd, bins = bins, alpha = 0.5, label = "5 pc")
-# ax[0,1].hist(gal_data_M51_7_10.F_Bol / gal_data_M51_7_10.F_Edd, bins = bins, alpha = 0.5, label = "10 pc", color='C1')
-# # ax[0,1].hist(gal_data_M51_7_20.F_Bol / gal_data_M51_7_20.F_Edd, bins = bins, alpha = 0.5, label = "20 pc")
-# ax[0,1].hist(gal_data_M51_7_40.F_Bol / gal_data_M51_7_40.F_Edd, bins = bins, alpha = 0.5, label = "40 pc", color='C3')
-
-# ax[0,1].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
-
-# # ax[1,0].hist(gal_data_NGC6946_6_5.F_Bol / gal_data_NGC6946_6_5.F_Edd, bins = bins, alpha = 0.5, label = "5 pc")
-# ax[1,0].hist(gal_data_NGC6946_6_10.F_Bol / gal_data_NGC6946_6_10.F_Edd, bins = bins, alpha = 0.5, label = "10 pc", color='C1')
-# # ax[1,0].hist(gal_data_NGC6946_6_20.F_Bol / gal_data_NGC6946_6_20.F_Edd, bins = bins, alpha = 0.5, label = "20 pc")
-# ax[1,0].hist(gal_data_NGC6946_6_40.F_Bol / gal_data_NGC6946_6_40.F_Edd, bins = bins, alpha = 0.5, label = "40 pc", color='C3')
-
-# ax[1,0].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
-
-# # ax[1,1].hist(gal_data_NGC6946_7_5.F_Bol / gal_data_NGC6946_7_5.F_Edd, bins = bins, alpha = 0.5, label = "5 pc")
-# ax[1,1].hist(gal_data_NGC6946_7_10.F_Bol / gal_data_NGC6946_7_10.F_Edd, bins = bins, alpha = 0.5, label = "10 pc", color='C1')
-# # ax[1,1].hist(gal_data_NGC6946_7_20.F_Bol / gal_data_NGC6946_7_20.F_Edd, bins = bins, alpha = 0.5, label = "20 pc")
-# ax[1,1].hist(gal_data_NGC6946_7_40.F_Bol / gal_data_NGC6946_7_40.F_Edd, bins = bins, alpha = 0.5, label = "40 pc", color='C3')
-
-# ax[1,1].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
-
-# ax[0,0].set_xscale('log')
-# ax[0,1].set_xscale('log')
-# ax[1,0].set_xscale('log')
-# ax[1,1].set_xscale('log')
-# ax[0,0].set_yscale('log')
-# ax[0,1].set_yscale('log')
-# ax[1,0].set_yscale('log')
-# ax[1,1].set_yscale('log')
-
-# ax[0,0].set_ylim(ymin,ymax)
-# ax[0,1].set_ylim(ymin,ymax)
-# ax[1,0].set_ylim(ymin,ymax)
-# ax[1,1].set_ylim(ymin,ymax)
-# ax[0,0].set_xlim(0.001)
-# ax[0,1].set_xlim(0.001,10)
-# ax[1,0].set_xlim(0.001)
-# ax[1,1].set_xlim(0.001,10)
-
-# ax[1,0].legend()
-
-# ax[1,0].set_xlabel(r'Eddington Ratio')
-# ax[1,1].set_xlabel(r'Eddington Ratio')
-# ax[0,0].set_ylabel(r'Count')
-# ax[1,0].set_ylabel(r'Count')
-
-# ax[0,0].text(0.05, 0.9, r'NGC 5194 (1 Myr)', fontsize=12, transform=ax[0,0].transAxes)
-# ax[0,1].text(0.05, 0.9, r'NGC 5194 (10 Myr)', fontsize=12, transform=ax[0,1].transAxes)
-# ax[1,0].text(0.05, 0.9, r'NGC 6946 (1 Myr)', fontsize=12, transform=ax[1,0].transAxes)
-# ax[1,1].text(0.05, 0.9, r'NGC 6946 (10 Myr)', fontsize=12, transform=ax[1,1].transAxes)
-
-# plt.tight_layout()
-
-##############################################################################
-
-
-### Galaxy Histogram - Spherical
-##############################################################################
-
 # M51 data
 gal_data_M51_6_5, continuous_SFR, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 5)
 gal_data_M51_6_10, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 10)
@@ -2380,31 +2285,31 @@ bins = np.logspace(-3,2,200)
 ymin = 1
 ymax = 100
 
-ax[0,0].hist(gal_data_M51_6_5.L_Bol / gal_data_M51_6_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
-ax[0,0].hist(gal_data_M51_6_10.L_Bol / gal_data_M51_6_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
-ax[0,0].hist(gal_data_M51_6_20.L_Bol / gal_data_M51_6_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
-ax[0,0].hist(gal_data_M51_6_40.L_Bol / gal_data_M51_6_40.L_Edd, bins = bins, alpha = 0.5, label = "40 pc")
+# ax[0,0].hist(gal_data_M51_6_5.F_Bol / gal_data_M51_6_5.F_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+ax[0,0].hist(gal_data_M51_6_10.F_Bol / gal_data_M51_6_10.F_Edd, bins = bins, alpha = 0.5, label = "10 pc", color='C1')
+# ax[0,0].hist(gal_data_M51_6_20.F_Bol / gal_data_M51_6_20.F_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+ax[0,0].hist(gal_data_M51_6_40.F_Bol / gal_data_M51_6_40.F_Edd, bins = bins, alpha = 0.5, label = "40 pc", color='C3')
 
 ax[0,0].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
 
-ax[0,1].hist(gal_data_M51_7_5.L_Bol / gal_data_M51_7_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
-ax[0,1].hist(gal_data_M51_7_10.L_Bol / gal_data_M51_7_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
-ax[0,1].hist(gal_data_M51_7_20.L_Bol / gal_data_M51_7_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
-ax[0,1].hist(gal_data_M51_7_40.L_Bol / gal_data_M51_7_40.L_Edd, bins = bins, alpha = 0.5, label = "40 pc")
+# ax[0,1].hist(gal_data_M51_7_5.F_Bol / gal_data_M51_7_5.F_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+ax[0,1].hist(gal_data_M51_7_10.F_Bol / gal_data_M51_7_10.F_Edd, bins = bins, alpha = 0.5, label = "10 pc", color='C1')
+# ax[0,1].hist(gal_data_M51_7_20.F_Bol / gal_data_M51_7_20.F_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+ax[0,1].hist(gal_data_M51_7_40.F_Bol / gal_data_M51_7_40.F_Edd, bins = bins, alpha = 0.5, label = "40 pc", color='C3')
 
 ax[0,1].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
 
-ax[1,0].hist(gal_data_NGC6946_6_5.L_Bol / gal_data_NGC6946_6_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
-ax[1,0].hist(gal_data_NGC6946_6_10.L_Bol / gal_data_NGC6946_6_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
-ax[1,0].hist(gal_data_NGC6946_6_20.L_Bol / gal_data_NGC6946_6_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
-ax[1,0].hist(gal_data_NGC6946_6_40.L_Bol / gal_data_NGC6946_6_40.L_Edd, bins = bins, alpha = 0.5, label = "40 pc")
+# ax[1,0].hist(gal_data_NGC6946_6_5.F_Bol / gal_data_NGC6946_6_5.F_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+ax[1,0].hist(gal_data_NGC6946_6_10.F_Bol / gal_data_NGC6946_6_10.F_Edd, bins = bins, alpha = 0.5, label = "10 pc", color='C1')
+# ax[1,0].hist(gal_data_NGC6946_6_20.F_Bol / gal_data_NGC6946_6_20.F_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+ax[1,0].hist(gal_data_NGC6946_6_40.F_Bol / gal_data_NGC6946_6_40.F_Edd, bins = bins, alpha = 0.5, label = "40 pc", color='C3')
 
 ax[1,0].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
 
-ax[1,1].hist(gal_data_NGC6946_7_5.L_Bol / gal_data_NGC6946_7_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
-ax[1,1].hist(gal_data_NGC6946_7_10.L_Bol / gal_data_NGC6946_7_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
-ax[1,1].hist(gal_data_NGC6946_7_20.L_Bol / gal_data_NGC6946_7_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
-ax[1,1].hist(gal_data_NGC6946_7_40.L_Bol / gal_data_NGC6946_7_40.L_Edd, bins = bins, alpha = 0.5, label = "40 pc")
+# ax[1,1].hist(gal_data_NGC6946_7_5.F_Bol / gal_data_NGC6946_7_5.F_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+ax[1,1].hist(gal_data_NGC6946_7_10.F_Bol / gal_data_NGC6946_7_10.F_Edd, bins = bins, alpha = 0.5, label = "10 pc", color='C1')
+# ax[1,1].hist(gal_data_NGC6946_7_20.F_Bol / gal_data_NGC6946_7_20.F_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+ax[1,1].hist(gal_data_NGC6946_7_40.F_Bol / gal_data_NGC6946_7_40.F_Edd, bins = bins, alpha = 0.5, label = "40 pc", color='C3')
 
 ax[1,1].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
 
@@ -2442,220 +2347,143 @@ plt.tight_layout()
 
 ##############################################################################
 
+
+### Galaxy Histogram - Spherical
+##############################################################################
+
+# # M51 data
+# gal_data_M51_6_5, continuous_SFR, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 5)
+# gal_data_M51_6_10, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 10)
+# gal_data_M51_6_20, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 20)
+# gal_data_M51_6_40, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 6.0, BPASS_file, 40)
+
+# gal_data_M51_7_5, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 5)
+# gal_data_M51_7_10, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 10)
+# gal_data_M51_7_20, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 20)
+# gal_data_M51_7_40, _, _, _, _, _, _, _ = PrepareGalaxyData("M51", 7.0, BPASS_file, 40)
+
+# # NGC6946 data
+# gal_data_NGC6946_6_5, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 5)
+# gal_data_NGC6946_6_10, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 10)
+# gal_data_NGC6946_6_20, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 20)
+# gal_data_NGC6946_6_40, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 6.0, BPASS_file, 40)
+
+# gal_data_NGC6946_7_5, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 5)
+# gal_data_NGC6946_7_10, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 10)
+# gal_data_NGC6946_7_20, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 20)
+# gal_data_NGC6946_7_40, _, _, _, _, _, _, _ = PrepareGalaxyData("NGC6946", 7.0, BPASS_file, 40)
+
+# fig, ax = plt.subplots(nrows = 2, ncols = 2, dpi = 200, sharey=True, figsize=(10,7))
+
+# bins = np.logspace(-3,2,200)
+
+# ymin = 1
+# ymax = 100
+
+# ax[0,0].hist(gal_data_M51_6_5.L_Bol / gal_data_M51_6_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[0,0].hist(gal_data_M51_6_10.L_Bol / gal_data_M51_6_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
+# ax[0,0].hist(gal_data_M51_6_20.L_Bol / gal_data_M51_6_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# ax[0,0].hist(gal_data_M51_6_40.L_Bol / gal_data_M51_6_40.L_Edd, bins = bins, alpha = 0.5, label = "40 pc")
+
+# ax[0,0].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
+
+# ax[0,1].hist(gal_data_M51_7_5.L_Bol / gal_data_M51_7_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[0,1].hist(gal_data_M51_7_10.L_Bol / gal_data_M51_7_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
+# ax[0,1].hist(gal_data_M51_7_20.L_Bol / gal_data_M51_7_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# ax[0,1].hist(gal_data_M51_7_40.L_Bol / gal_data_M51_7_40.L_Edd, bins = bins, alpha = 0.5, label = "40 pc")
+
+# ax[0,1].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
+
+# ax[1,0].hist(gal_data_NGC6946_6_5.L_Bol / gal_data_NGC6946_6_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[1,0].hist(gal_data_NGC6946_6_10.L_Bol / gal_data_NGC6946_6_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
+# ax[1,0].hist(gal_data_NGC6946_6_20.L_Bol / gal_data_NGC6946_6_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# ax[1,0].hist(gal_data_NGC6946_6_40.L_Bol / gal_data_NGC6946_6_40.L_Edd, bins = bins, alpha = 0.5, label = "40 pc")
+
+# ax[1,0].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
+
+# ax[1,1].hist(gal_data_NGC6946_7_5.L_Bol / gal_data_NGC6946_7_5.L_Edd, bins = bins, alpha = 0.5, label = "5 pc")
+# ax[1,1].hist(gal_data_NGC6946_7_10.L_Bol / gal_data_NGC6946_7_10.L_Edd, bins = bins, alpha = 0.5, label = "10 pc")
+# ax[1,1].hist(gal_data_NGC6946_7_20.L_Bol / gal_data_NGC6946_7_20.L_Edd, bins = bins, alpha = 0.5, label = "20 pc")
+# ax[1,1].hist(gal_data_NGC6946_7_40.L_Bol / gal_data_NGC6946_7_40.L_Edd, bins = bins, alpha = 0.5, label = "40 pc")
+
+# ax[1,1].plot([1, 1], [ymin, ymax], 'k', alpha = 0.5)
+
+# ax[0,0].set_xscale('log')
+# ax[0,1].set_xscale('log')
+# ax[1,0].set_xscale('log')
+# ax[1,1].set_xscale('log')
+# ax[0,0].set_yscale('log')
+# ax[0,1].set_yscale('log')
+# ax[1,0].set_yscale('log')
+# ax[1,1].set_yscale('log')
+
+# ax[0,0].set_ylim(ymin,ymax)
+# ax[0,1].set_ylim(ymin,ymax)
+# ax[1,0].set_ylim(ymin,ymax)
+# ax[1,1].set_ylim(ymin,ymax)
+# ax[0,0].set_xlim(0.001)
+# ax[0,1].set_xlim(0.001,10)
+# ax[1,0].set_xlim(0.001)
+# ax[1,1].set_xlim(0.001,10)
+
+# ax[1,0].legend()
+
+# ax[1,0].set_xlabel(r'Eddington Ratio')
+# ax[1,1].set_xlabel(r'Eddington Ratio')
+# ax[0,0].set_ylabel(r'Count')
+# ax[1,0].set_ylabel(r'Count')
+
+# ax[0,0].text(0.05, 0.9, r'NGC 5194 (1 Myr)', fontsize=12, transform=ax[0,0].transAxes)
+# ax[0,1].text(0.05, 0.9, r'NGC 5194 (10 Myr)', fontsize=12, transform=ax[0,1].transAxes)
+# ax[1,0].text(0.05, 0.9, r'NGC 6946 (1 Myr)', fontsize=12, transform=ax[1,0].transAxes)
+# ax[1,1].text(0.05, 0.9, r'NGC 6946 (10 Myr)', fontsize=12, transform=ax[1,1].transAxes)
+
+# plt.tight_layout()
+
+##############################################################################
+
 ## Get integral quantities, for use with the above histogram block
 #############################################################################
 
-super_Edd_M51_6_5 = gal_data_M51_6_5.L_Bol > gal_data_M51_6_5.L_Edd
-super_Edd_M51_6_10 = gal_data_M51_6_10.L_Bol > gal_data_M51_6_10.L_Edd
-super_Edd_M51_6_20 = gal_data_M51_6_20.L_Bol > gal_data_M51_6_20.L_Edd
-super_Edd_M51_6_40 = gal_data_M51_6_40.L_Bol > gal_data_M51_6_40.L_Edd
+# super_Edd_M51_6_5 = gal_data_M51_6_5.L_Bol > gal_data_M51_6_5.L_Edd
+# super_Edd_M51_6_10 = gal_data_M51_6_10.L_Bol > gal_data_M51_6_10.L_Edd
+# super_Edd_M51_6_20 = gal_data_M51_6_20.L_Bol > gal_data_M51_6_20.L_Edd
+# super_Edd_M51_6_40 = gal_data_M51_6_40.L_Bol > gal_data_M51_6_40.L_Edd
 
-super_Edd_M51_7_5 = gal_data_M51_7_5.L_Bol > gal_data_M51_7_5.L_Edd
-super_Edd_M51_7_10 = gal_data_M51_7_10.L_Bol > gal_data_M51_7_10.L_Edd
-super_Edd_M51_7_20 = gal_data_M51_7_20.L_Bol > gal_data_M51_7_20.L_Edd
-super_Edd_M51_7_40 = gal_data_M51_7_40.L_Bol > gal_data_M51_7_40.L_Edd
+# super_Edd_M51_7_5 = gal_data_M51_7_5.L_Bol > gal_data_M51_7_5.L_Edd
+# super_Edd_M51_7_10 = gal_data_M51_7_10.L_Bol > gal_data_M51_7_10.L_Edd
+# super_Edd_M51_7_20 = gal_data_M51_7_20.L_Bol > gal_data_M51_7_20.L_Edd
+# super_Edd_M51_7_40 = gal_data_M51_7_40.L_Bol > gal_data_M51_7_40.L_Edd
 
-super_Edd_NGC6946_6_5 = gal_data_NGC6946_6_5.L_Bol > gal_data_NGC6946_6_5.L_Edd
-super_Edd_NGC6946_6_10 = gal_data_NGC6946_6_10.L_Bol > gal_data_NGC6946_6_10.L_Edd
-super_Edd_NGC6946_6_20 = gal_data_NGC6946_6_20.L_Bol > gal_data_NGC6946_6_20.L_Edd
-super_Edd_NGC6946_6_40 = gal_data_NGC6946_6_40.L_Bol > gal_data_NGC6946_6_40.L_Edd
+# super_Edd_NGC6946_6_5 = gal_data_NGC6946_6_5.L_Bol > gal_data_NGC6946_6_5.L_Edd
+# super_Edd_NGC6946_6_10 = gal_data_NGC6946_6_10.L_Bol > gal_data_NGC6946_6_10.L_Edd
+# super_Edd_NGC6946_6_20 = gal_data_NGC6946_6_20.L_Bol > gal_data_NGC6946_6_20.L_Edd
+# super_Edd_NGC6946_6_40 = gal_data_NGC6946_6_40.L_Bol > gal_data_NGC6946_6_40.L_Edd
 
-super_Edd_NGC6946_7_5 = gal_data_NGC6946_7_5.L_Bol > gal_data_NGC6946_7_5.L_Edd
-super_Edd_NGC6946_7_10 = gal_data_NGC6946_7_10.L_Bol > gal_data_NGC6946_7_10.L_Edd
-super_Edd_NGC6946_7_20 = gal_data_NGC6946_7_20.L_Bol > gal_data_NGC6946_7_20.L_Edd
-super_Edd_NGC6946_7_40 = gal_data_NGC6946_7_40.L_Bol > gal_data_NGC6946_7_40.L_Edd
+# super_Edd_NGC6946_7_5 = gal_data_NGC6946_7_5.L_Bol > gal_data_NGC6946_7_5.L_Edd
+# super_Edd_NGC6946_7_10 = gal_data_NGC6946_7_10.L_Bol > gal_data_NGC6946_7_10.L_Edd
+# super_Edd_NGC6946_7_20 = gal_data_NGC6946_7_20.L_Bol > gal_data_NGC6946_7_20.L_Edd
+# super_Edd_NGC6946_7_40 = gal_data_NGC6946_7_40.L_Bol > gal_data_NGC6946_7_40.L_Edd
 
-M51_6_5_LBol_frac = gal_data_M51_6_5[super_Edd_M51_6_5].L_Bol.sum()/gal_data_M51_6_5.L_Bol.sum()
-M51_6_10_LBol_frac = gal_data_M51_6_10[super_Edd_M51_6_10].L_Bol.sum()/gal_data_M51_6_10.L_Bol.sum()
-M51_6_20_LBol_frac = gal_data_M51_6_20[super_Edd_M51_6_20].L_Bol.sum()/gal_data_M51_6_20.L_Bol.sum()
-M51_6_40_LBol_frac = gal_data_M51_6_40[super_Edd_M51_6_40].L_Bol.sum()/gal_data_M51_6_40.L_Bol.sum()
+# M51_6_5_LBol_frac = gal_data_M51_6_5[super_Edd_M51_6_5].L_Bol.sum()/gal_data_M51_6_5.L_Bol.sum()
+# M51_6_10_LBol_frac = gal_data_M51_6_10[super_Edd_M51_6_10].L_Bol.sum()/gal_data_M51_6_10.L_Bol.sum()
+# M51_6_20_LBol_frac = gal_data_M51_6_20[super_Edd_M51_6_20].L_Bol.sum()/gal_data_M51_6_20.L_Bol.sum()
+# M51_6_40_LBol_frac = gal_data_M51_6_40[super_Edd_M51_6_40].L_Bol.sum()/gal_data_M51_6_40.L_Bol.sum()
 
-M51_7_5_LBol_frac = gal_data_M51_7_5[super_Edd_M51_7_5].L_Bol.sum()/gal_data_M51_7_5.L_Bol.sum()
-M51_7_10_LBol_frac = gal_data_M51_7_10[super_Edd_M51_7_10].L_Bol.sum()/gal_data_M51_7_10.L_Bol.sum()
-M51_7_20_LBol_frac = gal_data_M51_7_20[super_Edd_M51_7_20].L_Bol.sum()/gal_data_M51_7_20.L_Bol.sum()
-M51_7_40_LBol_frac = gal_data_M51_7_40[super_Edd_M51_7_40].L_Bol.sum()/gal_data_M51_7_40.L_Bol.sum()
+# M51_7_5_LBol_frac = gal_data_M51_7_5[super_Edd_M51_7_5].L_Bol.sum()/gal_data_M51_7_5.L_Bol.sum()
+# M51_7_10_LBol_frac = gal_data_M51_7_10[super_Edd_M51_7_10].L_Bol.sum()/gal_data_M51_7_10.L_Bol.sum()
+# M51_7_20_LBol_frac = gal_data_M51_7_20[super_Edd_M51_7_20].L_Bol.sum()/gal_data_M51_7_20.L_Bol.sum()
+# M51_7_40_LBol_frac = gal_data_M51_7_40[super_Edd_M51_7_40].L_Bol.sum()/gal_data_M51_7_40.L_Bol.sum()
 
-NGC6946_6_5_LBol_frac = gal_data_NGC6946_6_5[super_Edd_NGC6946_6_5].L_Bol.sum()/gal_data_NGC6946_6_5.L_Bol.sum()
-NGC6946_6_10_LBol_frac = gal_data_NGC6946_6_10[super_Edd_NGC6946_6_10].L_Bol.sum()/gal_data_NGC6946_6_10.L_Bol.sum()
-NGC6946_6_20_LBol_frac = gal_data_NGC6946_6_20[super_Edd_NGC6946_6_20].L_Bol.sum()/gal_data_NGC6946_6_20.L_Bol.sum()
-NGC6946_6_40_LBol_frac = gal_data_NGC6946_6_40[super_Edd_NGC6946_6_40].L_Bol.sum()/gal_data_NGC6946_6_40.L_Bol.sum()
+# NGC6946_6_5_LBol_frac = gal_data_NGC6946_6_5[super_Edd_NGC6946_6_5].L_Bol.sum()/gal_data_NGC6946_6_5.L_Bol.sum()
+# NGC6946_6_10_LBol_frac = gal_data_NGC6946_6_10[super_Edd_NGC6946_6_10].L_Bol.sum()/gal_data_NGC6946_6_10.L_Bol.sum()
+# NGC6946_6_20_LBol_frac = gal_data_NGC6946_6_20[super_Edd_NGC6946_6_20].L_Bol.sum()/gal_data_NGC6946_6_20.L_Bol.sum()
+# NGC6946_6_40_LBol_frac = gal_data_NGC6946_6_40[super_Edd_NGC6946_6_40].L_Bol.sum()/gal_data_NGC6946_6_40.L_Bol.sum()
 
-NGC6946_7_5_LBol_frac = gal_data_NGC6946_7_5[super_Edd_NGC6946_7_5].L_Bol.sum()/gal_data_NGC6946_7_5.L_Bol.sum()
-NGC6946_7_10_LBol_frac = gal_data_NGC6946_7_10[super_Edd_NGC6946_7_10].L_Bol.sum()/gal_data_NGC6946_7_10.L_Bol.sum()
-NGC6946_7_20_LBol_frac = gal_data_NGC6946_7_20[super_Edd_NGC6946_7_20].L_Bol.sum()/gal_data_NGC6946_7_20.L_Bol.sum()
-NGC6946_7_40_LBol_frac = gal_data_NGC6946_7_40[super_Edd_NGC6946_7_40].L_Bol.sum()/gal_data_NGC6946_7_40.L_Bol.sum()
-
-M51_6_5_Mass_g_frac = gal_data_M51_6_5[super_Edd_M51_6_5].Mass_g.sum()/gal_data_M51_6_5.Mass_g.sum()
-M51_6_10_Mass_g_frac = gal_data_M51_6_10[super_Edd_M51_6_10].Mass_g.sum()/gal_data_M51_6_10.Mass_g.sum()
-M51_6_20_Mass_g_frac = gal_data_M51_6_20[super_Edd_M51_6_20].Mass_g.sum()/gal_data_M51_6_20.Mass_g.sum()
-M51_6_40_Mass_g_frac = gal_data_M51_6_40[super_Edd_M51_6_40].Mass_g.sum()/gal_data_M51_6_40.Mass_g.sum()
-
-M51_7_5_Mass_g_frac = gal_data_M51_7_5[super_Edd_M51_7_5].Mass_g.sum()/gal_data_M51_7_5.Mass_g.sum()
-M51_7_10_Mass_g_frac = gal_data_M51_7_10[super_Edd_M51_7_10].Mass_g.sum()/gal_data_M51_7_10.Mass_g.sum()
-M51_7_20_Mass_g_frac = gal_data_M51_7_20[super_Edd_M51_7_20].Mass_g.sum()/gal_data_M51_7_20.Mass_g.sum()
-M51_7_40_Mass_g_frac = gal_data_M51_7_40[super_Edd_M51_7_40].Mass_g.sum()/gal_data_M51_7_40.Mass_g.sum()
-
-NGC6946_6_5_Mass_g_frac = gal_data_NGC6946_6_5[super_Edd_NGC6946_6_5].Mass_g.sum()/gal_data_NGC6946_6_5.Mass_g.sum()
-NGC6946_6_10_Mass_g_frac = gal_data_NGC6946_6_10[super_Edd_NGC6946_6_10].Mass_g.sum()/gal_data_NGC6946_6_10.Mass_g.sum()
-NGC6946_6_20_Mass_g_frac = gal_data_NGC6946_6_20[super_Edd_NGC6946_6_20].Mass_g.sum()/gal_data_NGC6946_6_20.Mass_g.sum()
-NGC6946_6_40_Mass_g_frac = gal_data_NGC6946_6_40[super_Edd_NGC6946_6_40].Mass_g.sum()/gal_data_NGC6946_6_40.Mass_g.sum()
-
-NGC6946_7_5_Mass_g_frac = gal_data_NGC6946_7_5[super_Edd_NGC6946_7_5].Mass_g.sum()/gal_data_NGC6946_7_5.Mass_g.sum()
-NGC6946_7_10_Mass_g_frac = gal_data_NGC6946_7_10[super_Edd_NGC6946_7_10].Mass_g.sum()/gal_data_NGC6946_7_10.Mass_g.sum()
-NGC6946_7_20_Mass_g_frac = gal_data_NGC6946_7_20[super_Edd_NGC6946_7_20].Mass_g.sum()/gal_data_NGC6946_7_20.Mass_g.sum()
-NGC6946_7_40_Mass_g_frac = gal_data_NGC6946_7_40[super_Edd_NGC6946_7_40].Mass_g.sum()/gal_data_NGC6946_7_40.Mass_g.sum()
-
-M51_6_5_Mass_old_frac = gal_data_M51_6_5[super_Edd_M51_6_5].Mass_old.sum()/gal_data_M51_6_5.Mass_old.sum()
-M51_6_10_Mass_old_frac = gal_data_M51_6_10[super_Edd_M51_6_10].Mass_old.sum()/gal_data_M51_6_10.Mass_old.sum()
-M51_6_20_Mass_old_frac = gal_data_M51_6_20[super_Edd_M51_6_20].Mass_old.sum()/gal_data_M51_6_20.Mass_old.sum()
-M51_6_40_Mass_old_frac = gal_data_M51_6_40[super_Edd_M51_6_40].Mass_old.sum()/gal_data_M51_6_40.Mass_old.sum()
-
-M51_7_5_Mass_old_frac = gal_data_M51_7_5[super_Edd_M51_7_5].Mass_old.sum()/gal_data_M51_7_5.Mass_old.sum()
-M51_7_10_Mass_old_frac = gal_data_M51_7_10[super_Edd_M51_7_10].Mass_old.sum()/gal_data_M51_7_10.Mass_old.sum()
-M51_7_20_Mass_old_frac = gal_data_M51_7_20[super_Edd_M51_7_20].Mass_old.sum()/gal_data_M51_7_20.Mass_old.sum()
-M51_7_40_Mass_old_frac = gal_data_M51_7_40[super_Edd_M51_7_40].Mass_old.sum()/gal_data_M51_7_40.Mass_old.sum()
-
-NGC6946_6_5_Mass_old_frac = gal_data_NGC6946_6_5[super_Edd_NGC6946_6_5].Mass_old.sum()/gal_data_NGC6946_6_5.Mass_old.sum()
-NGC6946_6_10_Mass_old_frac = gal_data_NGC6946_6_10[super_Edd_NGC6946_6_10].Mass_old.sum()/gal_data_NGC6946_6_10.Mass_old.sum()
-NGC6946_6_20_Mass_old_frac = gal_data_NGC6946_6_20[super_Edd_NGC6946_6_20].Mass_old.sum()/gal_data_NGC6946_6_20.Mass_old.sum()
-NGC6946_6_40_Mass_old_frac = gal_data_NGC6946_6_40[super_Edd_NGC6946_6_40].Mass_old.sum()/gal_data_NGC6946_6_40.Mass_old.sum()
-
-NGC6946_7_5_Mass_old_frac = gal_data_NGC6946_7_5[super_Edd_NGC6946_7_5].Mass_old.sum()/gal_data_NGC6946_7_5.Mass_old.sum()
-NGC6946_7_10_Mass_old_frac = gal_data_NGC6946_7_10[super_Edd_NGC6946_7_10].Mass_old.sum()/gal_data_NGC6946_7_10.Mass_old.sum()
-NGC6946_7_20_Mass_old_frac = gal_data_NGC6946_7_20[super_Edd_NGC6946_7_20].Mass_old.sum()/gal_data_NGC6946_7_20.Mass_old.sum()
-NGC6946_7_40_Mass_old_frac = gal_data_NGC6946_7_40[super_Edd_NGC6946_7_40].Mass_old.sum()/gal_data_NGC6946_7_40.Mass_old.sum()
-
-print("M51 1 Myr 5 PC")
-print(f"LBol frac: {M51_6_5_LBol_frac:.8f}")
-print(f"Mgas frac: {M51_6_5_Mass_g_frac:.8f}")
-print(f"Mold frac: {M51_6_5_Mass_old_frac:.8f}")
-print("----------")
-print("M51 1 Myr 10 PC")
-print(f"LBol frac: {M51_6_10_LBol_frac:.8f}")
-print(f"Mgas frac: {M51_6_10_Mass_g_frac:.8f}")
-print(f"Mold frac: {M51_6_10_Mass_old_frac:.8f}")
-print("----------")
-print("M51 1 Myr 20 PC")
-print(f"LBol frac: {M51_6_20_LBol_frac:.8f}")
-print(f"Mgas frac: {M51_6_20_Mass_g_frac:.8f}")
-print(f"Mold frac: {M51_6_20_Mass_old_frac:.8f}")
-print("----------")
-print("M51 1 Myr 40 PC")
-print(f"LBol frac: {M51_6_40_LBol_frac:.8f}")
-print(f"Mgas frac: {M51_6_40_Mass_g_frac:.8f}")
-print(f"Mold frac: {M51_6_40_Mass_old_frac:.8f}")
-
-print("------------------------------")
-
-print("M51 10 Myr 5 PC")
-print(f"LBol frac: {M51_7_5_LBol_frac:.8f}")
-print(f"Mgas frac: {M51_7_5_Mass_g_frac:.8f}")
-print(f"Mold frac: {M51_7_5_Mass_old_frac:.8f}")
-print("----------")
-print("M51 10 Myr 10 PC")
-print(f"LBol frac: {M51_7_10_LBol_frac:.8f}")
-print(f"Mgas frac: {M51_7_10_Mass_g_frac:.8f}")
-print(f"Mold frac: {M51_7_10_Mass_old_frac:.8f}")
-print("----------")
-print("M51 10 Myr 20 PC")
-print(f"LBol frac: {M51_7_20_LBol_frac:.8f}")
-print(f"Mgas frac: {M51_7_20_Mass_g_frac:.8f}")
-print(f"Mold frac: {M51_7_20_Mass_old_frac:.8f}")
-print("----------")
-print("M51 10 Myr 40 PC")
-print(f"LBol frac: {M51_7_40_LBol_frac:.8f}")
-print(f"Mgas frac: {M51_7_40_Mass_g_frac:.8f}")
-print(f"Mold frac: {M51_7_40_Mass_old_frac:.8f}")
-
-print("------------------------------")
-
-print("NGC6946 1 Myr 5 PC")
-print(f"LBol frac: {NGC6946_6_5_LBol_frac:.8f}")
-print(f"Mgas frac: {NGC6946_6_5_Mass_g_frac:.8f}")
-print(f"Mold frac: {NGC6946_6_5_Mass_old_frac:.8f}")
-print("----------")
-print("NGC6946 1 Myr 10 PC")
-print(f"LBol frac: {NGC6946_6_10_LBol_frac:.8f}")
-print(f"Mgas frac: {NGC6946_6_10_Mass_g_frac:.8f}")
-print(f"Mold frac: {NGC6946_6_10_Mass_old_frac:.8f}")
-print("----------")
-print("NGC6946 1 Myr 20 PC")
-print(f"LBol frac: {NGC6946_6_20_LBol_frac:.8f}")
-print(f"Mgas frac: {NGC6946_6_20_Mass_g_frac:.8f}")
-print(f"Mold frac: {NGC6946_6_20_Mass_old_frac:.8f}")
-print("----------")
-print("NGC6946 1 Myr 40 PC")
-print(f"LBol frac: {NGC6946_6_40_LBol_frac:.8f}")
-print(f"Mgas frac: {NGC6946_6_40_Mass_g_frac:.8f}")
-print(f"Mold frac: {NGC6946_6_40_Mass_old_frac:.8f}")
-
-print("------------------------------")
-
-print("NGC6946 10 Myr 5 PC")
-print(f"LBol frac: {NGC6946_7_5_LBol_frac:.8f}")
-print(f"Mgas frac: {NGC6946_7_5_Mass_g_frac:.8f}")
-print(f"Mold frac: {NGC6946_7_5_Mass_old_frac:.8f}")
-print("----------")
-print("NGC6946 10 Myr 10 PC")
-print(f"LBol frac: {NGC6946_7_10_LBol_frac:.8f}")
-print(f"Mgas frac: {NGC6946_7_10_Mass_g_frac:.8f}")
-print(f"Mold frac: {NGC6946_7_10_Mass_old_frac:.8f}")
-print("----------")
-print("NGC6946 10 Myr 20 PC")
-print(f"LBol frac: {NGC6946_7_20_LBol_frac:.8f}")
-print(f"Mgas frac: {NGC6946_7_20_Mass_g_frac:.8f}")
-print(f"Mold frac: {NGC6946_7_20_Mass_old_frac:.8f}")
-print("----------")
-print("NGC6946 10 Myr 40 PC")
-print(f"LBol frac: {NGC6946_7_40_LBol_frac:.8f}")
-print(f"Mgas frac: {NGC6946_7_40_Mass_g_frac:.8f}")
-print(f"Mold frac: {NGC6946_7_40_Mass_old_frac:.8f}")
-
-##############################################################################
-
-
-## Integral Quantities planar
-##############################################################################
-
-# super_Edd_M51_6_5 = gal_data_M51_6_5.F_Bol > gal_data_M51_6_5.F_Edd
-# super_Edd_M51_6_10 = gal_data_M51_6_10.F_Bol > gal_data_M51_6_10.F_Edd
-# super_Edd_M51_6_20 = gal_data_M51_6_20.F_Bol > gal_data_M51_6_20.F_Edd
-# super_Edd_M51_6_40 = gal_data_M51_6_40.F_Bol > gal_data_M51_6_40.F_Edd
-
-# super_Edd_M51_7_5 = gal_data_M51_7_5.F_Bol > gal_data_M51_7_5.F_Edd
-# super_Edd_M51_7_10 = gal_data_M51_7_10.F_Bol > gal_data_M51_7_10.F_Edd
-# super_Edd_M51_7_20 = gal_data_M51_7_20.F_Bol > gal_data_M51_7_20.F_Edd
-# super_Edd_M51_7_40 = gal_data_M51_7_40.F_Bol > gal_data_M51_7_40.F_Edd
-
-# super_Edd_NGC6946_6_5 = gal_data_NGC6946_6_5.F_Bol > gal_data_NGC6946_6_5.F_Edd
-# super_Edd_NGC6946_6_10 = gal_data_NGC6946_6_10.F_Bol > gal_data_NGC6946_6_10.F_Edd
-# super_Edd_NGC6946_6_20 = gal_data_NGC6946_6_20.F_Bol > gal_data_NGC6946_6_20.F_Edd
-# super_Edd_NGC6946_6_40 = gal_data_NGC6946_6_40.F_Bol > gal_data_NGC6946_6_40.F_Edd
-
-# super_Edd_NGC6946_7_5 = gal_data_NGC6946_7_5.F_Bol > gal_data_NGC6946_7_5.F_Edd
-# super_Edd_NGC6946_7_10 = gal_data_NGC6946_7_10.F_Bol > gal_data_NGC6946_7_10.F_Edd
-# super_Edd_NGC6946_7_20 = gal_data_NGC6946_7_20.F_Bol > gal_data_NGC6946_7_20.F_Edd
-# super_Edd_NGC6946_7_40 = gal_data_NGC6946_7_40.F_Bol > gal_data_NGC6946_7_40.F_Edd
-
-# M51_6_5_FBol_frac = gal_data_M51_6_5[super_Edd_M51_6_5].F_Bol.sum()/gal_data_M51_6_5.F_Bol.sum()
-# M51_6_10_FBol_frac = gal_data_M51_6_10[super_Edd_M51_6_10].F_Bol.sum()/gal_data_M51_6_10.F_Bol.sum()
-# M51_6_20_FBol_frac = gal_data_M51_6_20[super_Edd_M51_6_20].F_Bol.sum()/gal_data_M51_6_20.F_Bol.sum()
-# M51_6_40_FBol_frac = gal_data_M51_6_40[super_Edd_M51_6_40].F_Bol.sum()/gal_data_M51_6_40.F_Bol.sum()
-
-# M51_7_5_FBol_frac = gal_data_M51_7_5[super_Edd_M51_7_5].F_Bol.sum()/gal_data_M51_7_5.F_Bol.sum()
-# M51_7_10_FBol_frac = gal_data_M51_7_10[super_Edd_M51_7_10].F_Bol.sum()/gal_data_M51_7_10.F_Bol.sum()
-# M51_7_20_FBol_frac = gal_data_M51_7_20[super_Edd_M51_7_20].F_Bol.sum()/gal_data_M51_7_20.F_Bol.sum()
-# M51_7_40_FBol_frac = gal_data_M51_7_40[super_Edd_M51_7_40].F_Bol.sum()/gal_data_M51_7_40.F_Bol.sum()
-
-# NGC6946_6_5_FBol_frac = gal_data_NGC6946_6_5[super_Edd_NGC6946_6_5].F_Bol.sum()/gal_data_NGC6946_6_5.F_Bol.sum()
-# NGC6946_6_10_FBol_frac = gal_data_NGC6946_6_10[super_Edd_NGC6946_6_10].F_Bol.sum()/gal_data_NGC6946_6_10.F_Bol.sum()
-# NGC6946_6_20_FBol_frac = gal_data_NGC6946_6_20[super_Edd_NGC6946_6_20].F_Bol.sum()/gal_data_NGC6946_6_20.F_Bol.sum()
-# NGC6946_6_40_FBol_frac = gal_data_NGC6946_6_40[super_Edd_NGC6946_6_40].F_Bol.sum()/gal_data_NGC6946_6_40.F_Bol.sum()
-
-# NGC6946_7_5_FBol_frac = gal_data_NGC6946_7_5[super_Edd_NGC6946_7_5].F_Bol.sum()/gal_data_NGC6946_7_5.F_Bol.sum()
-# NGC6946_7_10_FBol_frac = gal_data_NGC6946_7_10[super_Edd_NGC6946_7_10].F_Bol.sum()/gal_data_NGC6946_7_10.F_Bol.sum()
-# NGC6946_7_20_FBol_frac = gal_data_NGC6946_7_20[super_Edd_NGC6946_7_20].F_Bol.sum()/gal_data_NGC6946_7_20.F_Bol.sum()
-# NGC6946_7_40_FBol_frac = gal_data_NGC6946_7_40[super_Edd_NGC6946_7_40].F_Bol.sum()/gal_data_NGC6946_7_40.F_Bol.sum()
+# NGC6946_7_5_LBol_frac = gal_data_NGC6946_7_5[super_Edd_NGC6946_7_5].L_Bol.sum()/gal_data_NGC6946_7_5.L_Bol.sum()
+# NGC6946_7_10_LBol_frac = gal_data_NGC6946_7_10[super_Edd_NGC6946_7_10].L_Bol.sum()/gal_data_NGC6946_7_10.L_Bol.sum()
+# NGC6946_7_20_LBol_frac = gal_data_NGC6946_7_20[super_Edd_NGC6946_7_20].L_Bol.sum()/gal_data_NGC6946_7_20.L_Bol.sum()
+# NGC6946_7_40_LBol_frac = gal_data_NGC6946_7_40[super_Edd_NGC6946_7_40].L_Bol.sum()/gal_data_NGC6946_7_40.L_Bol.sum()
 
 # M51_6_5_Mass_g_frac = gal_data_M51_6_5[super_Edd_M51_6_5].Mass_g.sum()/gal_data_M51_6_5.Mass_g.sum()
 # M51_6_10_Mass_g_frac = gal_data_M51_6_10[super_Edd_M51_6_10].Mass_g.sum()/gal_data_M51_6_10.Mass_g.sum()
@@ -2677,75 +2505,247 @@ print(f"Mold frac: {NGC6946_7_40_Mass_old_frac:.8f}")
 # NGC6946_7_20_Mass_g_frac = gal_data_NGC6946_7_20[super_Edd_NGC6946_7_20].Mass_g.sum()/gal_data_NGC6946_7_20.Mass_g.sum()
 # NGC6946_7_40_Mass_g_frac = gal_data_NGC6946_7_40[super_Edd_NGC6946_7_40].Mass_g.sum()/gal_data_NGC6946_7_40.Mass_g.sum()
 
+# M51_6_5_Mass_old_frac = gal_data_M51_6_5[super_Edd_M51_6_5].Mass_old.sum()/gal_data_M51_6_5.Mass_old.sum()
+# M51_6_10_Mass_old_frac = gal_data_M51_6_10[super_Edd_M51_6_10].Mass_old.sum()/gal_data_M51_6_10.Mass_old.sum()
+# M51_6_20_Mass_old_frac = gal_data_M51_6_20[super_Edd_M51_6_20].Mass_old.sum()/gal_data_M51_6_20.Mass_old.sum()
+# M51_6_40_Mass_old_frac = gal_data_M51_6_40[super_Edd_M51_6_40].Mass_old.sum()/gal_data_M51_6_40.Mass_old.sum()
+
+# M51_7_5_Mass_old_frac = gal_data_M51_7_5[super_Edd_M51_7_5].Mass_old.sum()/gal_data_M51_7_5.Mass_old.sum()
+# M51_7_10_Mass_old_frac = gal_data_M51_7_10[super_Edd_M51_7_10].Mass_old.sum()/gal_data_M51_7_10.Mass_old.sum()
+# M51_7_20_Mass_old_frac = gal_data_M51_7_20[super_Edd_M51_7_20].Mass_old.sum()/gal_data_M51_7_20.Mass_old.sum()
+# M51_7_40_Mass_old_frac = gal_data_M51_7_40[super_Edd_M51_7_40].Mass_old.sum()/gal_data_M51_7_40.Mass_old.sum()
+
+# NGC6946_6_5_Mass_old_frac = gal_data_NGC6946_6_5[super_Edd_NGC6946_6_5].Mass_old.sum()/gal_data_NGC6946_6_5.Mass_old.sum()
+# NGC6946_6_10_Mass_old_frac = gal_data_NGC6946_6_10[super_Edd_NGC6946_6_10].Mass_old.sum()/gal_data_NGC6946_6_10.Mass_old.sum()
+# NGC6946_6_20_Mass_old_frac = gal_data_NGC6946_6_20[super_Edd_NGC6946_6_20].Mass_old.sum()/gal_data_NGC6946_6_20.Mass_old.sum()
+# NGC6946_6_40_Mass_old_frac = gal_data_NGC6946_6_40[super_Edd_NGC6946_6_40].Mass_old.sum()/gal_data_NGC6946_6_40.Mass_old.sum()
+
+# NGC6946_7_5_Mass_old_frac = gal_data_NGC6946_7_5[super_Edd_NGC6946_7_5].Mass_old.sum()/gal_data_NGC6946_7_5.Mass_old.sum()
+# NGC6946_7_10_Mass_old_frac = gal_data_NGC6946_7_10[super_Edd_NGC6946_7_10].Mass_old.sum()/gal_data_NGC6946_7_10.Mass_old.sum()
+# NGC6946_7_20_Mass_old_frac = gal_data_NGC6946_7_20[super_Edd_NGC6946_7_20].Mass_old.sum()/gal_data_NGC6946_7_20.Mass_old.sum()
+# NGC6946_7_40_Mass_old_frac = gal_data_NGC6946_7_40[super_Edd_NGC6946_7_40].Mass_old.sum()/gal_data_NGC6946_7_40.Mass_old.sum()
+
 # print("M51 1 Myr 5 PC")
-# print(f"FBol frac: {M51_6_5_FBol_frac:.8f}")
+# print(f"LBol frac: {M51_6_5_LBol_frac:.8f}")
 # print(f"Mgas frac: {M51_6_5_Mass_g_frac:.8f}")
+# print(f"Mold frac: {M51_6_5_Mass_old_frac:.8f}")
 # print("----------")
 # print("M51 1 Myr 10 PC")
-# print(f"FBol frac: {M51_6_10_FBol_frac:.8f}")
+# print(f"LBol frac: {M51_6_10_LBol_frac:.8f}")
 # print(f"Mgas frac: {M51_6_10_Mass_g_frac:.8f}")
+# print(f"Mold frac: {M51_6_10_Mass_old_frac:.8f}")
 # print("----------")
 # print("M51 1 Myr 20 PC")
-# print(f"FBol frac: {M51_6_20_FBol_frac:.8f}")
+# print(f"LBol frac: {M51_6_20_LBol_frac:.8f}")
 # print(f"Mgas frac: {M51_6_20_Mass_g_frac:.8f}")
+# print(f"Mold frac: {M51_6_20_Mass_old_frac:.8f}")
 # print("----------")
 # print("M51 1 Myr 40 PC")
-# print(f"FBol frac: {M51_6_40_FBol_frac:.8f}")
+# print(f"LBol frac: {M51_6_40_LBol_frac:.8f}")
 # print(f"Mgas frac: {M51_6_40_Mass_g_frac:.8f}")
+# print(f"Mold frac: {M51_6_40_Mass_old_frac:.8f}")
 
 # print("------------------------------")
 
 # print("M51 10 Myr 5 PC")
-# print(f"FBol frac: {M51_7_5_FBol_frac:.8f}")
+# print(f"LBol frac: {M51_7_5_LBol_frac:.8f}")
 # print(f"Mgas frac: {M51_7_5_Mass_g_frac:.8f}")
+# print(f"Mold frac: {M51_7_5_Mass_old_frac:.8f}")
 # print("----------")
 # print("M51 10 Myr 10 PC")
-# print(f"FBol frac: {M51_7_10_FBol_frac:.8f}")
+# print(f"LBol frac: {M51_7_10_LBol_frac:.8f}")
 # print(f"Mgas frac: {M51_7_10_Mass_g_frac:.8f}")
+# print(f"Mold frac: {M51_7_10_Mass_old_frac:.8f}")
 # print("----------")
 # print("M51 10 Myr 20 PC")
-# print(f"FBol frac: {M51_7_20_FBol_frac:.8f}")
+# print(f"LBol frac: {M51_7_20_LBol_frac:.8f}")
 # print(f"Mgas frac: {M51_7_20_Mass_g_frac:.8f}")
+# print(f"Mold frac: {M51_7_20_Mass_old_frac:.8f}")
 # print("----------")
 # print("M51 10 Myr 40 PC")
-# print(f"FBol frac: {M51_7_40_FBol_frac:.8f}")
+# print(f"LBol frac: {M51_7_40_LBol_frac:.8f}")
 # print(f"Mgas frac: {M51_7_40_Mass_g_frac:.8f}")
+# print(f"Mold frac: {M51_7_40_Mass_old_frac:.8f}")
 
 # print("------------------------------")
 
 # print("NGC6946 1 Myr 5 PC")
-# print(f"FBol frac: {NGC6946_6_5_FBol_frac:.8f}")
+# print(f"LBol frac: {NGC6946_6_5_LBol_frac:.8f}")
 # print(f"Mgas frac: {NGC6946_6_5_Mass_g_frac:.8f}")
+# print(f"Mold frac: {NGC6946_6_5_Mass_old_frac:.8f}")
 # print("----------")
 # print("NGC6946 1 Myr 10 PC")
-# print(f"FBol frac: {NGC6946_6_10_FBol_frac:.8f}")
+# print(f"LBol frac: {NGC6946_6_10_LBol_frac:.8f}")
 # print(f"Mgas frac: {NGC6946_6_10_Mass_g_frac:.8f}")
+# print(f"Mold frac: {NGC6946_6_10_Mass_old_frac:.8f}")
 # print("----------")
 # print("NGC6946 1 Myr 20 PC")
-# print(f"FBol frac: {NGC6946_6_20_FBol_frac:.8f}")
+# print(f"LBol frac: {NGC6946_6_20_LBol_frac:.8f}")
 # print(f"Mgas frac: {NGC6946_6_20_Mass_g_frac:.8f}")
+# print(f"Mold frac: {NGC6946_6_20_Mass_old_frac:.8f}")
 # print("----------")
 # print("NGC6946 1 Myr 40 PC")
-# print(f"FBol frac: {NGC6946_6_40_FBol_frac:.8f}")
+# print(f"LBol frac: {NGC6946_6_40_LBol_frac:.8f}")
 # print(f"Mgas frac: {NGC6946_6_40_Mass_g_frac:.8f}")
+# print(f"Mold frac: {NGC6946_6_40_Mass_old_frac:.8f}")
 
 # print("------------------------------")
 
 # print("NGC6946 10 Myr 5 PC")
-# print(f"FBol frac: {NGC6946_7_5_FBol_frac:.8f}")
+# print(f"LBol frac: {NGC6946_7_5_LBol_frac:.8f}")
 # print(f"Mgas frac: {NGC6946_7_5_Mass_g_frac:.8f}")
+# print(f"Mold frac: {NGC6946_7_5_Mass_old_frac:.8f}")
 # print("----------")
 # print("NGC6946 10 Myr 10 PC")
-# print(f"FBol frac: {NGC6946_7_10_FBol_frac:.8f}")
+# print(f"LBol frac: {NGC6946_7_10_LBol_frac:.8f}")
 # print(f"Mgas frac: {NGC6946_7_10_Mass_g_frac:.8f}")
+# print(f"Mold frac: {NGC6946_7_10_Mass_old_frac:.8f}")
 # print("----------")
 # print("NGC6946 10 Myr 20 PC")
-# print(f"FBol frac: {NGC6946_7_20_FBol_frac:.8f}")
+# print(f"LBol frac: {NGC6946_7_20_LBol_frac:.8f}")
 # print(f"Mgas frac: {NGC6946_7_20_Mass_g_frac:.8f}")
+# print(f"Mold frac: {NGC6946_7_20_Mass_old_frac:.8f}")
 # print("----------")
 # print("NGC6946 10 Myr 40 PC")
-# print(f"FBol frac: {NGC6946_7_40_FBol_frac:.8f}")
+# print(f"LBol frac: {NGC6946_7_40_LBol_frac:.8f}")
 # print(f"Mgas frac: {NGC6946_7_40_Mass_g_frac:.8f}")
+# print(f"Mold frac: {NGC6946_7_40_Mass_old_frac:.8f}")
+
+##############################################################################
+
+
+## Integral Quantities planar
+##############################################################################
+
+super_Edd_M51_6_5 = gal_data_M51_6_5.F_Bol > gal_data_M51_6_5.F_Edd
+super_Edd_M51_6_10 = gal_data_M51_6_10.F_Bol > gal_data_M51_6_10.F_Edd
+super_Edd_M51_6_20 = gal_data_M51_6_20.F_Bol > gal_data_M51_6_20.F_Edd
+super_Edd_M51_6_40 = gal_data_M51_6_40.F_Bol > gal_data_M51_6_40.F_Edd
+
+super_Edd_M51_7_5 = gal_data_M51_7_5.F_Bol > gal_data_M51_7_5.F_Edd
+super_Edd_M51_7_10 = gal_data_M51_7_10.F_Bol > gal_data_M51_7_10.F_Edd
+super_Edd_M51_7_20 = gal_data_M51_7_20.F_Bol > gal_data_M51_7_20.F_Edd
+super_Edd_M51_7_40 = gal_data_M51_7_40.F_Bol > gal_data_M51_7_40.F_Edd
+
+super_Edd_NGC6946_6_5 = gal_data_NGC6946_6_5.F_Bol > gal_data_NGC6946_6_5.F_Edd
+super_Edd_NGC6946_6_10 = gal_data_NGC6946_6_10.F_Bol > gal_data_NGC6946_6_10.F_Edd
+super_Edd_NGC6946_6_20 = gal_data_NGC6946_6_20.F_Bol > gal_data_NGC6946_6_20.F_Edd
+super_Edd_NGC6946_6_40 = gal_data_NGC6946_6_40.F_Bol > gal_data_NGC6946_6_40.F_Edd
+
+super_Edd_NGC6946_7_5 = gal_data_NGC6946_7_5.F_Bol > gal_data_NGC6946_7_5.F_Edd
+super_Edd_NGC6946_7_10 = gal_data_NGC6946_7_10.F_Bol > gal_data_NGC6946_7_10.F_Edd
+super_Edd_NGC6946_7_20 = gal_data_NGC6946_7_20.F_Bol > gal_data_NGC6946_7_20.F_Edd
+super_Edd_NGC6946_7_40 = gal_data_NGC6946_7_40.F_Bol > gal_data_NGC6946_7_40.F_Edd
+
+M51_6_5_FBol_frac = gal_data_M51_6_5[super_Edd_M51_6_5].F_Bol.sum()/gal_data_M51_6_5.F_Bol.sum()
+M51_6_10_FBol_frac = gal_data_M51_6_10[super_Edd_M51_6_10].F_Bol.sum()/gal_data_M51_6_10.F_Bol.sum()
+M51_6_20_FBol_frac = gal_data_M51_6_20[super_Edd_M51_6_20].F_Bol.sum()/gal_data_M51_6_20.F_Bol.sum()
+M51_6_40_FBol_frac = gal_data_M51_6_40[super_Edd_M51_6_40].F_Bol.sum()/gal_data_M51_6_40.F_Bol.sum()
+
+M51_7_5_FBol_frac = gal_data_M51_7_5[super_Edd_M51_7_5].F_Bol.sum()/gal_data_M51_7_5.F_Bol.sum()
+M51_7_10_FBol_frac = gal_data_M51_7_10[super_Edd_M51_7_10].F_Bol.sum()/gal_data_M51_7_10.F_Bol.sum()
+M51_7_20_FBol_frac = gal_data_M51_7_20[super_Edd_M51_7_20].F_Bol.sum()/gal_data_M51_7_20.F_Bol.sum()
+M51_7_40_FBol_frac = gal_data_M51_7_40[super_Edd_M51_7_40].F_Bol.sum()/gal_data_M51_7_40.F_Bol.sum()
+
+NGC6946_6_5_FBol_frac = gal_data_NGC6946_6_5[super_Edd_NGC6946_6_5].F_Bol.sum()/gal_data_NGC6946_6_5.F_Bol.sum()
+NGC6946_6_10_FBol_frac = gal_data_NGC6946_6_10[super_Edd_NGC6946_6_10].F_Bol.sum()/gal_data_NGC6946_6_10.F_Bol.sum()
+NGC6946_6_20_FBol_frac = gal_data_NGC6946_6_20[super_Edd_NGC6946_6_20].F_Bol.sum()/gal_data_NGC6946_6_20.F_Bol.sum()
+NGC6946_6_40_FBol_frac = gal_data_NGC6946_6_40[super_Edd_NGC6946_6_40].F_Bol.sum()/gal_data_NGC6946_6_40.F_Bol.sum()
+
+NGC6946_7_5_FBol_frac = gal_data_NGC6946_7_5[super_Edd_NGC6946_7_5].F_Bol.sum()/gal_data_NGC6946_7_5.F_Bol.sum()
+NGC6946_7_10_FBol_frac = gal_data_NGC6946_7_10[super_Edd_NGC6946_7_10].F_Bol.sum()/gal_data_NGC6946_7_10.F_Bol.sum()
+NGC6946_7_20_FBol_frac = gal_data_NGC6946_7_20[super_Edd_NGC6946_7_20].F_Bol.sum()/gal_data_NGC6946_7_20.F_Bol.sum()
+NGC6946_7_40_FBol_frac = gal_data_NGC6946_7_40[super_Edd_NGC6946_7_40].F_Bol.sum()/gal_data_NGC6946_7_40.F_Bol.sum()
+
+M51_6_5_Mass_g_frac = gal_data_M51_6_5[super_Edd_M51_6_5].Mass_g.sum()/gal_data_M51_6_5.Mass_g.sum()
+M51_6_10_Mass_g_frac = gal_data_M51_6_10[super_Edd_M51_6_10].Mass_g.sum()/gal_data_M51_6_10.Mass_g.sum()
+M51_6_20_Mass_g_frac = gal_data_M51_6_20[super_Edd_M51_6_20].Mass_g.sum()/gal_data_M51_6_20.Mass_g.sum()
+M51_6_40_Mass_g_frac = gal_data_M51_6_40[super_Edd_M51_6_40].Mass_g.sum()/gal_data_M51_6_40.Mass_g.sum()
+
+M51_7_5_Mass_g_frac = gal_data_M51_7_5[super_Edd_M51_7_5].Mass_g.sum()/gal_data_M51_7_5.Mass_g.sum()
+M51_7_10_Mass_g_frac = gal_data_M51_7_10[super_Edd_M51_7_10].Mass_g.sum()/gal_data_M51_7_10.Mass_g.sum()
+M51_7_20_Mass_g_frac = gal_data_M51_7_20[super_Edd_M51_7_20].Mass_g.sum()/gal_data_M51_7_20.Mass_g.sum()
+M51_7_40_Mass_g_frac = gal_data_M51_7_40[super_Edd_M51_7_40].Mass_g.sum()/gal_data_M51_7_40.Mass_g.sum()
+
+NGC6946_6_5_Mass_g_frac = gal_data_NGC6946_6_5[super_Edd_NGC6946_6_5].Mass_g.sum()/gal_data_NGC6946_6_5.Mass_g.sum()
+NGC6946_6_10_Mass_g_frac = gal_data_NGC6946_6_10[super_Edd_NGC6946_6_10].Mass_g.sum()/gal_data_NGC6946_6_10.Mass_g.sum()
+NGC6946_6_20_Mass_g_frac = gal_data_NGC6946_6_20[super_Edd_NGC6946_6_20].Mass_g.sum()/gal_data_NGC6946_6_20.Mass_g.sum()
+NGC6946_6_40_Mass_g_frac = gal_data_NGC6946_6_40[super_Edd_NGC6946_6_40].Mass_g.sum()/gal_data_NGC6946_6_40.Mass_g.sum()
+
+NGC6946_7_5_Mass_g_frac = gal_data_NGC6946_7_5[super_Edd_NGC6946_7_5].Mass_g.sum()/gal_data_NGC6946_7_5.Mass_g.sum()
+NGC6946_7_10_Mass_g_frac = gal_data_NGC6946_7_10[super_Edd_NGC6946_7_10].Mass_g.sum()/gal_data_NGC6946_7_10.Mass_g.sum()
+NGC6946_7_20_Mass_g_frac = gal_data_NGC6946_7_20[super_Edd_NGC6946_7_20].Mass_g.sum()/gal_data_NGC6946_7_20.Mass_g.sum()
+NGC6946_7_40_Mass_g_frac = gal_data_NGC6946_7_40[super_Edd_NGC6946_7_40].Mass_g.sum()/gal_data_NGC6946_7_40.Mass_g.sum()
+
+print("M51 1 Myr 5 PC")
+print(f"FBol frac: {M51_6_5_FBol_frac:.8f}")
+print(f"Mgas frac: {M51_6_5_Mass_g_frac:.8f}")
+print("----------")
+print("M51 1 Myr 10 PC")
+print(f"FBol frac: {M51_6_10_FBol_frac:.8f}")
+print(f"Mgas frac: {M51_6_10_Mass_g_frac:.8f}")
+print("----------")
+print("M51 1 Myr 20 PC")
+print(f"FBol frac: {M51_6_20_FBol_frac:.8f}")
+print(f"Mgas frac: {M51_6_20_Mass_g_frac:.8f}")
+print("----------")
+print("M51 1 Myr 40 PC")
+print(f"FBol frac: {M51_6_40_FBol_frac:.8f}")
+print(f"Mgas frac: {M51_6_40_Mass_g_frac:.8f}")
+
+print("------------------------------")
+
+print("M51 10 Myr 5 PC")
+print(f"FBol frac: {M51_7_5_FBol_frac:.8f}")
+print(f"Mgas frac: {M51_7_5_Mass_g_frac:.8f}")
+print("----------")
+print("M51 10 Myr 10 PC")
+print(f"FBol frac: {M51_7_10_FBol_frac:.8f}")
+print(f"Mgas frac: {M51_7_10_Mass_g_frac:.8f}")
+print("----------")
+print("M51 10 Myr 20 PC")
+print(f"FBol frac: {M51_7_20_FBol_frac:.8f}")
+print(f"Mgas frac: {M51_7_20_Mass_g_frac:.8f}")
+print("----------")
+print("M51 10 Myr 40 PC")
+print(f"FBol frac: {M51_7_40_FBol_frac:.8f}")
+print(f"Mgas frac: {M51_7_40_Mass_g_frac:.8f}")
+
+print("------------------------------")
+
+print("NGC6946 1 Myr 5 PC")
+print(f"FBol frac: {NGC6946_6_5_FBol_frac:.8f}")
+print(f"Mgas frac: {NGC6946_6_5_Mass_g_frac:.8f}")
+print("----------")
+print("NGC6946 1 Myr 10 PC")
+print(f"FBol frac: {NGC6946_6_10_FBol_frac:.8f}")
+print(f"Mgas frac: {NGC6946_6_10_Mass_g_frac:.8f}")
+print("----------")
+print("NGC6946 1 Myr 20 PC")
+print(f"FBol frac: {NGC6946_6_20_FBol_frac:.8f}")
+print(f"Mgas frac: {NGC6946_6_20_Mass_g_frac:.8f}")
+print("----------")
+print("NGC6946 1 Myr 40 PC")
+print(f"FBol frac: {NGC6946_6_40_FBol_frac:.8f}")
+print(f"Mgas frac: {NGC6946_6_40_Mass_g_frac:.8f}")
+
+print("------------------------------")
+
+print("NGC6946 10 Myr 5 PC")
+print(f"FBol frac: {NGC6946_7_5_FBol_frac:.8f}")
+print(f"Mgas frac: {NGC6946_7_5_Mass_g_frac:.8f}")
+print("----------")
+print("NGC6946 10 Myr 10 PC")
+print(f"FBol frac: {NGC6946_7_10_FBol_frac:.8f}")
+print(f"Mgas frac: {NGC6946_7_10_Mass_g_frac:.8f}")
+print("----------")
+print("NGC6946 10 Myr 20 PC")
+print(f"FBol frac: {NGC6946_7_20_FBol_frac:.8f}")
+print(f"Mgas frac: {NGC6946_7_20_Mass_g_frac:.8f}")
+print("----------")
+print("NGC6946 10 Myr 40 PC")
+print(f"FBol frac: {NGC6946_7_40_FBol_frac:.8f}")
+print(f"Mgas frac: {NGC6946_7_40_Mass_g_frac:.8f}")
 
 ##############################################################################
 
