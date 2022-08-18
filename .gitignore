@@ -17,3 +17,5 @@ draine_data_Gra_10_0
 draine_data_SiC_10_0
 Sil_21
 *.png
+__pycache__/constants.cpython-39.pyc
+__pycache__/read_BPASS.cpython-39.pyc
