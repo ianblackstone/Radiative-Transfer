@@ -183,7 +183,7 @@ def GetTauScaling(folder, grain_min, grain_max, wl_list, BPASS_data, time_slice,
     
     return df, kappa_av_RP, kappa_av_F
 
-def GetLEddDataFrame(BPASS_file, grain_min, grain_max, wl_min, wl_max, f_dg):
+def GetLEddDataFrame(BPASS_file, continuous_SFR, grain_min, grain_max, wl_min, wl_max, f_dg):
     #########################################################################
     # Gets the existing L_Edd data frame csv data or builds a new one if one
     # has not been previously generated.
@@ -256,8 +256,60 @@ def GetLEddDataFrame(BPASS_file, grain_min, grain_max, wl_min, wl_max, f_dg):
         
         # This seems silly but is done for type safe reasons.
         L_Edd_DF = pd.read_csv(L_Edd_file)
+        
+    L_Edd_CSFR_file = 'L_Edd data/L_Edd dataframe CSFR {} a {} to {}.csv'.format(BPASS_file.replace('.z',' z').replace('.dat',''), grain_min, grain_max)
     
-    return L_Edd_DF
+    if os.path.exists(L_Edd_CSFR_file):
+        L_Edd_CSFR_DF = pd.read_csv(L_Edd_CSFR_file)
+    else:
+        print("File does not exist, creating L Edd CSFR data file")
+        SM_file = BPASS_file.replace('spectra','starmass')
+    
+        time_list = continuous_SFR.columns[continuous_SFR.columns != 'WL']
+    
+        time_list_exp = np.power(10,time_list.astype(float))
+    
+        continuous_SFR = continuous_SFR[ (continuous_SFR.WL >= wl_min) & (continuous_SFR.WL <= wl_max) ]
+        wl_list = continuous_SFR.WL.to_numpy()
+    
+        kappa_av_RP = np.zeros_like(time_list)
+        kappa_av_F = np.zeros_like(time_list)
+        L = np.zeros_like(time_list)
+    
+        folder = 'Draine data Sil/'
+        for i, time_slice in enumerate(time_list):
+            kappa_av_RP[i], kappa_av_F[i], _, _, L[i], a = GetKappas(folder, grain_min, grain_max, wl_list, continuous_SFR, time_slice)
+    
+        L_edd_Sil = 1.299*10**4 / (kappa_av_RP*f_dg)
+    
+        L_Edd_CSFR_DF = pd.DataFrame({'time':time_list,'time exp':time_list_exp, 'L_bol_BPASS':L, 'kappa_av_RP_Sil':kappa_av_RP, 'kappa_av_F_Sil':kappa_av_F, 'L_Edd_Sil':L_edd_Sil})
+
+        folder = 'Draine data SiC/'
+        for i, time_slice in enumerate(time_list):
+            kappa_av_RP[i], kappa_av_F[i], _, _, _, _ = GetKappas(folder, grain_min, grain_max, wl_list, continuous_SFR, time_slice)
+    
+        L_edd_SiC =  1.299*10**4 / (kappa_av_RP*f_dg)
+    
+        L_Edd_CSFR_DF['kappa_av_RP_SiC'] = kappa_av_RP
+        L_Edd_CSFR_DF['kappa_av_F_SiC'] = kappa_av_F
+        L_Edd_CSFR_DF['L_Edd_SiC'] = L_edd_SiC
+    
+        folder = 'Draine data Gra/'
+        for i, time_slice in enumerate(time_list):
+            kappa_av_RP[i], kappa_av_F[i], _, _, _, _ = GetKappas(folder, grain_min, grain_max, wl_list, continuous_SFR, time_slice)
+    
+        L_edd_Gra = 1.299*10**4 / (kappa_av_RP*f_dg)
+    
+        L_Edd_CSFR_DF['kappa_av_RP_Gra'] = kappa_av_RP
+        L_Edd_CSFR_DF['kappa_av_F_Gra'] = kappa_av_F
+        L_Edd_CSFR_DF['L_Edd_Gra'] = L_edd_Gra
+    
+        L_Edd_CSFR_DF.to_csv(L_Edd_CSFR_file, index = False)
+        
+        # This seems silly but is done for type safe reasons.
+        L_Edd_CSFR_DF = pd.read_csv(L_Edd_CSFR_file)
+    
+    return L_Edd_DF, L_Edd_CSFR_DF
 
 # # Get the tau scaling and save it to a csv
 # # -------------------------------------------------------------------
